@@ -12,6 +12,12 @@ CREATE TABLE userRoles (
     role_name VARCHAR(50) UNIQUE NOT NULL
 );
 
+
+
+
+
+
+
 INSERT INTO userRoles (role_name) VALUES ('admin'), ('user'), ('affiliate');
 
 -- Creating the Subscription Plans Table
@@ -42,6 +48,10 @@ CREATE TABLE users (
     FOREIGN KEY (role_id) REFERENCES userRoles(role_id),
     FOREIGN KEY (subscription_id) REFERENCES subscriptionPlans(subscription_id)
 );
+
+
+
+
 
 -- Generated Images (was missing)
 CREATE TABLE generatedImages (
