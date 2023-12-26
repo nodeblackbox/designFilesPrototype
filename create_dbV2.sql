@@ -1,5 +1,3 @@
-
-
 -- Set up user privileges
 CREATE USER 'aiuser'@'localhost' IDENTIFIED WITH mysql_native_password BY 'password';
 GRANT SELECT, INSERT, UPDATE, DELETE ON aiDashboard.* TO 'aiuser'@'localhost';

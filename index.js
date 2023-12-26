@@ -32,6 +32,8 @@ const port = process.env.PORT || 3000;
 
 const PEPPER = 'yourRandomStringHere'; // Replace with your actual pepper
 
+const bucketName = process.env.MINIO_BUCKET_NAME;
+
 
 // MySQL database connection
 const db = mysql.createConnection({
@@ -63,6 +65,21 @@ const sessionStore = new MySQLStore({
     expiration: 86400000 // The maximum age of a valid session; 1 day
 });
 
+// app.use(session({
+//     key: 'ai_dashboard_session_cookie',
+//     secret: process.env.SESSION_SECRET,
+//     store: sessionStore,
+//     resave: false,
+//     saveUninitialized: false,
+//     cookie: {
+//         maxAge: 86400000, // 1 day
+//         httpOnly: false, // Helps prevent cross-site scripting (XSS)
+//         secure: true, // Ensures the cookie is only used over HTTPS
+//         sameSite: 'lax' // Can be 'strict', 'lax', or 'none'. Helps mitigate CSRF attacks
+//     }
+// }));
+
+
 app.use(session({
     key: 'ai_dashboard_session_cookie',
     secret: process.env.SESSION_SECRET,
@@ -71,11 +88,12 @@ app.use(session({
     saveUninitialized: false,
     cookie: {
         maxAge: 86400000, // 1 day
-        httpOnly: true, // Helps prevent cross-site scripting (XSS)
-        secure: true, // Ensures the cookie is only used over HTTPS
-        sameSite: 'lax' // Can be 'strict', 'lax', or 'none'. Helps mitigate CSRF attacks
+        httpOnly: false, // Helps prevent cross-site scripting (XSS)
+        secure: process.env.NODE_ENV === 'production', // Use secure cookies in production only
+        sameSite: 'lax'
     }
 }));
+
 
 // Middleware and session setup
 
@@ -177,6 +195,49 @@ app.post('/checkout/:productId', async (req, res) => {
 
 
 
+// app.post('/register', [
+//     body('username')
+//         .trim()
+//         .isLength({ min: 2, max: 25 }).withMessage('Username must be between 2 to 25 characters.')
+//         .matches(/^[A-Za-z0-9_]+$/).withMessage('Username must be alphanumeric with underscores.'),
+//     body('email')
+//         .trim()
+//         .isEmail().withMessage('Invalid email address.'),
+//     body('password')
+//         .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long.')
+// ], (req, res) => {
+//     const errors = validationResult(req);
+//     if (!errors.isEmpty()) {
+//         const errorMessages = errors.array().map(error => ({ parameter: error.param, message: error.msg, value: error.value }));
+//         return res.render('register.ejs', { errors: errorMessages });
+//     }
+
+//     const { username, email, password } = req.body;
+//     const plainPassword = PEPPER + password;
+
+//     bcrypt.hash(plainPassword, saltRounds, function (err, hashedPassword) {
+//         if (err) {
+//             console.error("Error hashing password:", err);
+//             return res.render('register.ejs', { errors: [{ message: 'Error hashing password.' }] });
+//         }
+
+//         let defaultRoleId = 2; // Adjust based on your roles setup
+//         let sqlquery = "INSERT INTO users (username, email, password, role_id) VALUES (?,?,?,?)";
+
+//         db.query(sqlquery, [username, email, hashedPassword, defaultRoleId], (err) => {
+//             if (err) {
+//                 if (err.code === 'ER_DUP_ENTRY') {
+//                     const errorMessage = err.sqlMessage.includes('users.username') ? 'Username already exists.' : 'Email already exists.';
+//                     return res.render('register.ejs', { errors: [{ message: errorMessage }] });
+//                 }
+//                 console.error("Error registering user:", err);
+//                 return res.render('register.ejs', { errors: [{ message: 'Error registering user.' }] });
+//             }
+//             // Redirect to login page or send a success message
+//             res.redirect('/login'); // Or `res.send('User registered successfully!');`
+//         });
+//     });
+// });
 
 // app.get('/login', (req, res) => {
 //     res.render('login.ejs');
@@ -194,23 +255,6 @@ app.post('/checkout/:productId', async (req, res) => {
 //     res.send('POST request to public/auth/register');
 // });
 
-async function findRoleId(roleName) {
-    return new Promise((resolve, reject) => {
-        db.query('SELECT role_id FROM userRoles WHERE role_name = ?', [roleName], (err, results) => {
-            if (err) {
-                reject(err);
-            } else {
-                resolve(results[0]?.role_id);
-            }
-        });
-    });
-}
-
-
-
-app.get('/register', (req, res) => {
-    res.render('register.ejs');
-});
 
 
 
@@ -257,6 +301,28 @@ app.get('/register', (req, res) => {
 //         });
 //     });
 // });
+
+
+async function findRoleId(roleName) {
+    return new Promise((resolve, reject) => {
+        db.query('SELECT role_id FROM userRoles WHERE role_name = ?', [roleName], (err, results) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(results[0]?.role_id);
+            }
+        });
+    });
+}
+
+
+
+app.get('/register', (req, res) => {
+    res.render('register.ejs');
+});
+
+
+
 
 app.post('/register', [
     body('username')
@@ -306,6 +372,77 @@ app.get('/login', (req, res) => {
     res.render('login.ejs');
 });
 
+// app.post('/login', [
+//     body('username')
+//         .trim()
+//         .escape()
+//         .isLength({ min: 2, max: 20 }).withMessage('Username must be between 2 to 20 characters.')
+//         .matches(/^[A-Za-z0-9_]+$/).withMessage('Username must be alphanumeric with underscores.'),
+//     body('password')
+//         .trim()
+//         .escape()
+//         .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long.')
+// ], (req, res) => {
+//     const errors = validationResult(req);
+//     if (!errors.isEmpty()) {
+//         const errorMessages = errors.array().map(error => ({ parameter: error.param, message: error.msg, value: error.value }));
+//         return res.render('login.ejs', { errors: errorMessages });
+//     }
+
+//     const { username, password } = req.body;
+//     const sqlquery = "SELECT user_id, password FROM users WHERE username = ?";
+
+//     db.query(sqlquery, [username], (err, results) => {
+//         if (err) {
+//             console.error("Database error:", err);
+//             return res.render('login.ejs', { errors: [{ message: 'Error logging in.' }] });
+//         }
+
+//         if (results.length === 0) {
+//             return res.render('login.ejs', { errors: [{ message: 'Invalid username or password.' }] });
+//         }
+
+//         const hashedPasswordFromDB = results[0].password;
+//         bcrypt.compare(PEPPER + password, hashedPasswordFromDB, (err, isMatch) => {
+//             if (err) {
+//                 console.error("Error comparing passwords:", err);
+//                 return res.render('login.ejs', { errors: [{ message: 'Error logging in.' }] });
+//             }
+//             if (isMatch) {
+//                 req.session.userId = results[0].user_id;
+//                 req.session.save(err => {
+//                     if (err) {
+//                         // Handle error
+//                         console.log("there was a error after match", err)
+//                     }
+//                     res.redirect('/userProfile');
+//                 });
+//             } else {
+//                 // Handle login failure
+//                 res.render('login.ejs', { errors: [{ message: 'Invalid username or password.' }] });
+//             }
+
+
+
+//             if (isMatch) {
+//                 req.session.userId = results[0].user_id;  // Assuming 'user_id' is the field name in your database
+//                 req.session.save(err => {
+//                     if (err) {
+//                         // Handle error
+//                         console.log("there was a error after match", err)
+//                     }
+
+//                     // req.session.userId = results[0].user_id;  // Assuming 'user_id' is the field name in your database
+//                     res.redirect('/userProfile'); // Redirect to the user's profile or dashboard
+//                 });
+
+//             } else {
+//                 res.render('login.ejs', { errors: [{ message: 'Invalid username or password.' }] });
+//             }
+//         });
+//     });
+// });
+
 app.post('/login', [
     body('username')
         .trim()
@@ -345,13 +482,22 @@ app.post('/login', [
 
             if (isMatch) {
                 req.session.userId = results[0].user_id;
-                res.redirect('/userProfile'); // Redirect to the user's profile or dashboard
+                req.session.save(err => {
+                    if (err) {
+                        console.error("Error saving session:", err);
+                        return res.render('login.ejs', { errors: [{ message: 'Error logging in.' }] });
+                    }
+                    res.redirect('/userProfile');
+                });
             } else {
                 res.render('login.ejs', { errors: [{ message: 'Invalid username or password.' }] });
             }
         });
     });
 });
+
+
+
 
 app.get('/logout', (req, res) => {
     req.session.destroy(err => {
@@ -362,6 +508,46 @@ app.get('/logout', (req, res) => {
         res.redirect('/login');
     });
 });
+
+
+
+app.get('/userProfile', async (req, res) => {
+    console.log('req.sessionID => Session ID:', req.sessionID);
+    console.log('req.session => Session Data userId:', req.session);
+    console.log('req.session.userId => Session Data userId:', req.session.userId);
+    if (!req.session.userId) {
+        // Redirect to login page if not logged in
+        return res.redirect('/login');
+    }
+
+    try {
+        const userQuery = 'SELECT username, email, profile_picture, bio FROM users WHERE user_id = ?';
+        db.query(userQuery, [req.session.userId], (err, results) => {
+            if (err) {
+                console.error("Database error:", err);
+                return res.status(500).send('Error fetching user profile');
+            }
+            if (results.length === 0) {
+                return res.status(404).send('User not found');
+            }
+
+            const user = results[0];
+            res.render('userProfile', { user });
+        });
+    } catch (err) {
+        console.error("Error:", err);
+        res.status(500).send('Error fetching user profile');
+    }
+});
+
+
+app.post('/userProfile', (req, res) => {
+    res.send('POST request to userProfile');
+});
+
+
+
+
 // // Input validation and sanitization for login
 // app.post('/login', [
 //     body('username')
@@ -423,36 +609,6 @@ app.get('/logout', (req, res) => {
         res.redirect('/login');
     });
 });
-
-app.get('/userProfile', async (req, res) => {
-    if (!req.session.userId) {
-        // Redirect to login page if not logged in
-        return res.redirect('/login');
-    }
-
-    try {
-        const userQuery = 'SELECT username, email, profile_picture, bio FROM users WHERE user_id = ?';
-        db.query(userQuery, [req.session.userId], (err, results) => {
-            if (err) {
-                console.error("Database error:", err);
-                return res.status(500).send('Error fetching user profile');
-            }
-            if (results.length === 0) {
-                return res.status(404).send('User not found');
-            }
-
-            const user = results[0];
-            res.render('userProfile', { user });
-        });
-    } catch (err) {
-        console.error("Error:", err);
-        res.status(500).send('Error fetching user profile');
-    }
-});
-app.post('/userProfile', (req, res) => {
-    res.send('POST request to userProfile');
-});
-
 
 
 
@@ -532,6 +688,122 @@ app.post('/dashboard', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
+// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+function dataURLtoFile(dataurl, filename) {
+
+    var arr = dataurl.split(','),
+        mime = arr[0].match(/:(.*?);/)[1],
+        bstr = atob(arr[1]),
+        n = bstr.length,
+        u8arr = new Uint8Array(n);
+
+    while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+    }
+
+    return new File([u8arr], filename, { type: mime });
+}
+
+//Usage example:
+var file = dataURLtoFile('data:text/plain;base64,aGVsbG8gd29ybGQ=', 'hello.txt');
+console.log(file);
+
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'uploads/')
+    },
+    filename: (req, file, cb) => {
+        cb(null, file.originalname)
+    }
+});
+
+
+
+// Endpoint to list all images in a bucket
+app.get('/images', (req, res) => {
+    const bucketName = 'aidashboardbucket';
+    console.log("imagesss-------------");
+
+    const objects = [];
+
+    minioClient.listObjectsV2(bucketName, '', true, "1000")
+        .on("error", error => {
+            console.log(error)
+            return res.status(500).send(error)
+        })
+        .on('data', data => {
+            // console.log("data")
+            objects.push(data)
+        })
+        .on('end', () => {
+            console.log("end")
+            let html = '<h1>Images</h1>';
+            console.log(objects)
+            objects.forEach(file => {
+                html += `<div><img src="/images/${file.name}" style="width:200px;"><p>${file.name}</p></div>`;
+            });
+            res.send(html);
+        })
+});
+
+
+
+app.get('/images/:imageName', (req, res) => {
+    const bucketName = 'aidashboardbucket';
+    const objectName = req.params.imageName;
+
+    minioClient.getObject(bucketName, objectName, (err, stream) => {
+        if (err) {
+            res.status(500).send(err);
+            return;
+        }
+        res.setHeader('Content-Type', 'image/png'); // Set the appropriate content-type
+        stream.pipe(res);
+    });
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
