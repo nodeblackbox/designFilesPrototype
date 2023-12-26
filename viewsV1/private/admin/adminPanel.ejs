@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+
+<div class="flex h-screen bg-gray-100">
+    <!-- Sidebar -->
+    <div class="bg-white w-64 px-4 py-8 shadow-lg">
+        <nav class="space-y-4">
+            <a href="/dashboard" class="block px-4 py-2 text-sm font-medium text-gray-700 rounded hover:bg-gray-200">Dashboard</a>
+            <a href="/users" class="block px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700">Users</a>
+            <!-- Add more links as needed -->
+        </nav>
+    </div>
+
+    <!-- Content -->
+    <div class="flex-1 p-10">
+        <div class="flex justify-between mb-6">
+            <h1 class="text-3xl font-semibold">Users</h1>
+            <button class="px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-700 transition-colors">Add New</button>
+        </div>
+
+        <!-- Table -->
+        <div class="overflow-x-auto bg-white rounded-lg shadow overflow-y-auto relative">
+            <table class="border-collapse table-auto w-full whitespace-no-wrap bg-white table-striped relative">
+                <thead>
+                    <tr class="text-left">
+                        <th class="py-2 px-3 sticky top-0 border-b border-gray-200 bg-gray-100">
+                            Username
+                        </th>
+                        <th class="py-2 px-3 sticky top-0 border-b border-gray-200 bg-gray-100">
+                            Name
+                        </th>
+                        <th class="py-2 px-3 sticky top-0 border-b border-gray-200 bg-gray-100">
+                            Email
+                        </th>
+                        <th class="py-2 px-3 sticky top-0 border-b border-gray-200 bg-gray-100">
+                            Role
+                        </th>
+                        <th class="py-2 px-3 sticky top-0 border-b border-gray-200 bg-gray-100">
+                            Posts
+                        </th>
+                        <!-- More columns -->
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="py-2 px-3 border-b border-gray-200">
+                            customer
+                        </td>
+                        <td class="py-2 px-3 border-b border-gray-200">
+                            Customer Customer
+                        </td>
+                        <td class="py-2 px-3 border-b border-gray-200">
+                            customer@example.com
+                        </td>
+                        <td class="py-2 px-3 border-b border-gray-200">
+                            Customer
+                        </td>
+                        <td class="py-2 px-3 border-b border-gray-200">
+                            0
+                        </td>
+                        <!-- More cells -->
+                    </tr>
+                    <!-- More rows -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>User Profile</title>
+    <!-- Add any additional CSS or head tags here -->
+</head>
+<body>
+    <h1>User Profile</h1>
+    <% if (user) { %>
+        <div>
+            <h2><%= user.username %></h2>
+            <p>Email: <%= user.email %></p>
+            <% if (user.profile_picture) { %>
+                <img src="<%= user.profile_picture %>" alt="Profile Picture">
+            <% } else { %>
+                <p>No profile picture available</p>
+            <% } %>
+            <p><%= user.bio || "No bio available" %></p>
+        </div>
+    <% } else { %>
+        <p>User information is not available.</p>
+    <% } %>
+    <!-- Add more user details as needed -->
+</body>
+</html>
