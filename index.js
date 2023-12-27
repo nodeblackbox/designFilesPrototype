@@ -114,51 +114,181 @@ const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
 console.log("endpointSecret", endpointSecret)
 
-app.post('/webhook', express.raw({ type: 'application/json' }), (request, response) => {
+
+
+
+// app.post('/webhook', express.raw({ type: 'application/json' }),
+//     (request, response) => {
+//         const sig = request.headers['stripe-signature'];
+
+//         // Parse the JSON from the request body
+//         const requestBody = JSON.parse(request.body.toString());
+
+//         // Extract the userId from metadata before checking the event
+//         const userId = requestBody.data.object.metadata.userId;
+//         console.log("User ID:", userId);
+
+//         // Extract the last item of the JSON file
+//         // Assuming you want the last item from an array within the JSON
+//         // Update the following line according to your JSON structure
+//         const lastItem = requestBody.data.object.someArray[requestBody.data.object.someArray.length - 1];
+//         console.log("Last item:", lastItem);
+
+//         let event;
+
+//         try {
+//             // Construct the event using Stripe's library
+//             event = stripe.webhooks.constructEvent(request.body, sig, endpointSecret);
+//         } catch (err) {
+//             response.status(400).send(`Webhook Error: ${err.message}`);
+//             return;
+//         }
+
+//         // Process the event
+//         if (event.type === 'checkout.session.completed') {
+//             // Handle the checkout session completed event
+//         } else {
+//             console.log(`Unhandled event type ${event.type}`);
+//         }
+
+//         // Return a 200 response to acknowledge receipt of the event
+//         response.status(200).send();
+//     });
+
+
+
+// app.post('/webhook', express.raw({ type: 'application/json' }),
+//     (request, response) => {
+//         const sig = request.headers['stripe-signature'];
+
+
+
+
+//         // Parse the JSON from the request body
+//         const requestBody = JSON.parse(request.body.toString());
+
+//         // Extract the userId from metadata before checking the event
+//         const userId = requestBody.data.object.metadata.userId;
+//         console.log("User ID:", userId);
+
+//         console.log("request from payment", request.body.toString())
+//         // Extract the userId from metadata before checking the event
+
+//         // const userId = request.body.data.object.metadata.userId;
+//         // console.log("User ID:", userId);
+
+
+
+//         let event;
+
+
+//         test = request.body.toString()
+
+//         // Check if the event type is 'checkout.session.completed'
+//         if (event.type === 'checkout.session.completed') {
+//             // const checkoutSession = event.data.object;
+
+//             // Extract the userId
+//             const checkoutSession = event.data.object;
+//             const userId = checkoutSession.metadata.userId;
+//             console.log("User ID:", userId);
+
+//             // Handle the checkout session completed event
+//             // Here you can add code to update the user's status in your database
+//             // using the extracted userId
+//         }
+
+
+
+//         try {
+//             // JSON to access the Stripe event data
+//             const eventJson = JSON.stringify(request.body);
+
+//             event = stripe.webhooks.constructEvent(eventJson, sig, endpointSecret);
+
+//             console.log("event", event)
+//             console.log("event.type", event.type)
+
+
+//         } catch (err) {
+//             response.status(400).send(`Webhook Error: ${err.message}`);
+//             return;
+//         }
+
+//         // Handle the event
+//         switch (event.type) {
+//             case 'checkout.session.completed':
+//                 const checkoutSessionCompleted = event.data.object;
+//                 console.log(checkoutSessionCompleted)
+
+//                 // Then define and call a function to handle the event checkout.session.completed
+//                 break;
+//             // ... handle other event types
+//             default:
+//                 console.log(`Unhandled event type ${event.type}`);
+//         }
+
+//         console.log('finshed')
+
+//         // Return a 200 response to acknowledge receipt of the event
+//         // response.status(200).send(`Webhook Error: ${err.message}`);
+//         response.status(200)
+//         response.send();
+//     });
+
+
+
+app.post('/webhook', express.raw({ type: 'application/json' }), async (request, response) => {
     const sig = request.headers['stripe-signature'];
 
-    console.log("request from payment", request.body.toString())
-
     let event;
-    //So the problem is I Am parsing the data before 
-    // The response object body Is an object when it should be a string
-    //Webhook Error: No signatures found matching the expected signature for payload. Are you passing the raw request body you received from Stripe? 
-    // Learn more about webhook signing and explore webhook integration examples for various frameworks at https://github.com/stripe/stripe-node#webhook-signing
 
     try {
-        // Convert the request body to a string and parse it as 
-
-        // JSON to access the Stripe event data
-        const eventJson = JSON.stringify(request.body);
-
-        event = stripe.webhooks.constructEvent(eventJson, sig, endpointSecret);
-
-
+        // Construct the event using Stripe's library
+        event = stripe.webhooks.constructEvent(request.body, sig, endpointSecret);
     } catch (err) {
         response.status(400).send(`Webhook Error: ${err.message}`);
         return;
     }
 
-    // Handle the event
-    switch (event.type) {
-        case 'checkout.session.completed':
-            const checkoutSessionCompleted = event.data.object;
-            console.log(checkoutSessionCompleted)
+    // Check the event type
+    if (event.type === 'checkout.session.completed') {
+        const checkoutSession = event.data.object;
 
-            // Then define and call a function to handle the event checkout.session.completed
-            break;
-        // ... handle other event types
-        default:
-            console.log(`Unhandled event type ${event.type}`);
+        // Extract the user ID and Stripe subscription ID from the event
+        const userId = checkoutSession.metadata.userId;
+        const stripeSubscriptionId = checkoutSession.subscription;
+
+        console.log("Checkout session completed for User ID:", userId);
+        console.log("Stripe Subscription ID:", stripeSubscriptionId);
+
+        // Update subscription status in the database
+        const updateQuery = 'UPDATE subscriptionHistory SET status = ?, stripe_subscription_id = ? WHERE user_id = ? AND status = ?';
+
+        db.query(updateQuery, ['active', stripeSubscriptionId, userId, 'pending'], (err, results) => {
+            if (err) {
+                console.error('Error updating subscription status:', err);
+                response.status(500).send('Error processing webhook');
+                return;
+            }
+            console.log(`Subscription updated for user: ${userId}`);
+        });
+    } else {
+        console.log(`Unhandled event type ${event.type}`);
     }
 
-    console.log('finshed')
-
     // Return a 200 response to acknowledge receipt of the event
-    // response.status(200).send(`Webhook Error: ${err.message}`);
-    response.status(200)
-    response.send();
+    response.status(200).send();
 });
+
+
+
+
+
+
+
+
+
 
 // Define our Polymorphic data 
 app.use(express.json());
@@ -232,16 +362,185 @@ app.get('/product/:productId', (req, res) => {
     }
 });
 
+
+
+
+
+// app.post('/checkout/:productId', async (req, res) => {
+//     if (!req.session.userId) {
+//         // Handle the case where the user is not logged in
+//         return res.status(403).send('User not authenticated');
+//     }
+
+//     const userId = req.session.userId;
+//     const productId = req.params.productId;
+//     const product = products.find(p => p.id == productId);
+
+//     if (!product) {
+//         return res.status(404).send('Product not found');
+//     }
+
+//     // Set the subscription status to 'pending' in the database
+//     const insertQuery = `
+//         INSERT INTO subscriptionHistory (user_id, subscription_id, status)
+//         VALUES (?, ?, 'pending')
+//     `;
+//     // Assuming you have a function to execute the query
+//     try {
+//         await executeDatabaseQuery(insertQuery, [userId, product.subscriptionId]);
+
+//         // Proceed to create the Stripe session
+//         const session = await stripe.checkout.sessions.create({
+//             mode: 'subscription',
+//             line_items: [{
+//                 price: product.priceID,
+//                 quantity: 1,
+//             }],
+//             metadata: {
+//                 userId: userId.toString(),
+//             },
+//             success_url: `${req.headers.origin}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+//             cancel_url: `${req.headers.origin}/payment-cancelled`,
+//         });
+//         return res.json({ url: session.url });
+//     } catch (error) {
+//         res.status(500).send({ error: error.message });
+//     }
+// });
+
+
+
+// app.post('/checkout/:productId', async (req, res) => {
+//     if (!req.session.userId) {
+//         return res.status(403).send('User not authenticated');
+//     }
+
+//     const productId = parseInt(req.params.productId); // Coerce productId to a number
+//     const product = products.find(p => p.id === productId);
+
+//     if (!product) {
+//         console.error(`Product with ID ${productId} not found`);
+//         return res.status(404).send('Product not found');
+//     }
+
+//     try {
+//         const session = await stripe.checkout.sessions.create({
+//             mode: 'subscription',
+//             line_items: [{
+//                 price: product.priceID,
+//                 quantity: 1,
+//             }],
+//             metadata: {
+//                 userId: req.session.userId.toString(),
+//             },
+//             success_url: `${req.headers.origin}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+//             cancel_url: `${req.headers.origin}/payment-cancelled`,
+//         });
+
+//         return res.json({ url: session.url });
+//     } catch (error) {
+//         console.error(`Error creating Stripe session for product ID ${productId}:`, error);
+//         res.status(500).send({ error: error.message });
+//     }
+// });
+
+// app.post('/checkout/:productId', async (req, res) => {
+//     if (!req.session.userId) {
+//         return res.status(403).send('User not authenticated');
+//     }
+
+//     const userId = req.session.userId; // Get the user ID from session
+//     const productId = parseInt(req.params.productId); // Get the product ID from URL params
+//     const product = products.find(p => p.id === productId);
+
+//     if (!product) {
+//         return res.status(404).send('Product not found');
+//     }
+
+//     // Assuming subscription_id is related to the product
+//     const subscriptionId = product.id; // or any other logic to determine the subscription ID
+
+//     // Insert a record into subscriptionHistory with status 'pending'
+//     const insertQuery = `
+//         INSERT INTO subscriptionHistory (user_id, subscription_id, status)
+//         VALUES (?, ?, 'pending')
+//     `;
+//     try {
+//         await executeDatabaseQuery(insertQuery, [userId, subscriptionId]);
+
+//         // Create Stripe checkout session
+//         const session = await stripe.checkout.sessions.create({
+//             mode: 'subscription',
+//             line_items: [{
+//                 price: product.priceID,
+//                 quantity: 1,
+//             }],
+//             metadata: {
+//                 userId: userId.toString(),
+//             },
+//             success_url: `${req.headers.origin}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+//             cancel_url: `${req.headers.origin}/payment-cancelled`,
+//         });
+
+//         res.json({ url: session.url });
+//     } catch (error) {
+//         console.error(`Error processing subscription for user ID ${userId}:`, error);
+//         res.status(500).send({ error: error.message });
+//     }
+// });
+
+
+
+
+// Function to execute a database query
+function executeDatabaseQuery(query, params = []) {
+    return new Promise((resolve, reject) => {
+        db.query(query, params, (err, results) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(results);
+            }
+        });
+    });
+}
+
 app.post('/checkout/:productId', async (req, res) => {
+    if (!req.session.userId) {
+        return res.status(403).send('User not authenticated');
+    }
 
+    const userId = req.session.userId;
+    const productId = parseInt(req.params.productId);
+    const product = products.find(p => p.id === productId);
 
-
-    const product = products.find(p => p.id == req.body.productId);
     if (!product) {
         return res.status(404).send('Product not found');
     }
 
+    // Assuming you have a way to get the subscription ID from the product
+    // Example: const subscriptionId = getSubscriptionIdFromProduct(product);
+    // For now, I'm using the product ID itself
+    const subscriptionId = product.id;
+
+    const insertQuery = `
+        INSERT INTO subscriptionHistory (user_id, subscription_id, status)
+        VALUES (?, ?, 'pending')
+    `;
+
     try {
+        // First, check if the user exists
+        const userCheckQuery = 'SELECT * FROM users WHERE user_id = ?';
+        const userCheckResult = await executeDatabaseQuery(userCheckQuery, [userId]);
+
+        if (userCheckResult.length === 0) {
+            return res.status(404).send('User not found');
+        }
+
+        // Then, insert the pending record
+        await executeDatabaseQuery(insertQuery, [userId, subscriptionId]);
+
+        // Create Stripe checkout session
         const session = await stripe.checkout.sessions.create({
             mode: 'subscription',
             line_items: [{
@@ -249,16 +548,949 @@ app.post('/checkout/:productId', async (req, res) => {
                 quantity: 1,
             }],
             metadata: {
-                userId: req.session.userId.toString(),
+                userId: userId.toString(),
             },
             success_url: `${req.headers.origin}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${req.headers.origin}/payment-cancelled`,
         });
-        return res.json({ url: session.url });
+
+        res.json({ url: session.url });
     } catch (error) {
+        console.error(`Error processing subscription for user ID ${userId}:`, error);
         res.status(500).send({ error: error.message });
     }
 });
+
+
+
+// app.post('/checkout/:productId', async (req, res) => {
+//     if (!req.session.userId) {
+//         return res.status(403).send('User not authenticated');
+//     }
+
+//     const userId = req.session.userId;
+//     const productId = parseInt(req.params.productId);
+//     const product = products.find(p => p.id === productId);
+
+//     if (!product) {
+//         return res.status(404).send('Product not found');
+//     }
+
+//     // Determine the subscription plan ID related to the product
+//     const subscriptionId = product.id; // Example logic
+
+//     const insertQuery = `
+//         INSERT INTO subscriptionHistory (user_id, subscription_id, status)
+//         VALUES (?, ?, 'pending')
+//     `;
+
+//     try {
+//         await executeDatabaseQuery(insertQuery, [userId, subscriptionId]);
+
+//         const session = await stripe.checkout.sessions.create({
+//             mode: 'subscription',
+//             line_items: [{
+//                 price: product.priceID,
+//                 quantity: 1,
+//             }],
+//             metadata: {
+//                 userId: userId.toString(),
+//             },
+//             success_url: `${req.headers.origin}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+//             cancel_url: `${req.headers.origin}/payment-cancelled`,
+//         });
+
+//         res.json({ url: session.url });
+//     } catch (error) {
+//         console.error(`Error processing subscription for user ID ${userId}:`, error);
+//         res.status(500).send({ error: error.message });
+//     }
+// });
+
+
+// app.post('/checkout/:productId', async (req, res) => {
+
+
+
+//     const product = products.find(p => p.id == req.body.productId);
+//     if (!product) {
+//         return res.status(404).send('Product not found');
+//     }
+
+//     try {
+//         const session = await stripe.checkout.sessions.create({
+//             mode: 'subscription',
+//             line_items: [{
+//                 price: product.priceID,
+//                 quantity: 1,
+//             }],
+//             metadata: {
+//                 userId: req.session.userId.toString(),
+//             },
+//             success_url: `${req.headers.origin}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+//             cancel_url: `${req.headers.origin}/payment-cancelled`,
+//         });
+//         return res.json({ url: session.url });
+//     } catch (error) {
+//         res.status(500).send({ error: error.message });
+//     }
+// });
+
+console.log("session", JSON.stringify(session))
+
+//         // Retrieve the user by email and update their subscription status
+//         try {
+//             const userEmail = session.customer_email;
+//             const subscriptionId = session.subscription; // This is the Stripe subscription ID
+
+//             const updateQuery = 'UPDATE users SET subscription_id = ? WHERE email = ?';
+//             await db.promise().query(updateQuery, [subscriptionId, userEmail]);
+
+//             console.log(`Subscription updated for user: ${userEmail}`);
+//         } catch (updateError) {
+//             console.error('Error updating user subscription:', updateError);
+//         }
+//     }
+
+//     // Return a response to acknowledge receipt of the event
+//     res.json({ received: true });
+// });
+
+
+
+app.get('/plans', (req, res) => {
+
+    res.render('plans.ejs', { products });
+});
+
+app.post('/plans', (req, res) => {
+    res.send('POST request to public/plans');
+});
+
+app.get('/payment-success', (req, res) => {
+    res.render('success');
+});
+
+app.get('/payment-cancelled', (req, res) => {
+    res.render('cancelled');
+});
+
+// app.post('/register', [
+//     body('username')
+//         .trim()
+//         .isLength({ min: 2, max: 25 }).withMessage('Username must be between 2 to 25 characters.')
+//         .matches(/^[A-Za-z0-9_]+$/).withMessage('Username must be alphanumeric with underscores.'),
+//     body('email')
+//         .trim()
+//         .isEmail().withMessage('Invalid email address.'),
+//     body('password')
+//         .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long.')
+// ], (req, res) => {
+//     const errors = validationResult(req);
+//     if (!errors.isEmpty()) {
+//         const errorMessages = errors.array().map(error => ({ parameter: error.param, message: error.msg, value: error.value }));
+//         return res.render('register.ejs', { errors: errorMessages });
+//     }
+
+//     const { username, email, password } = req.body;
+//     const plainPassword = PEPPER + password;
+
+//     bcrypt.hash(plainPassword, saltRounds, function (err, hashedPassword) {
+//         if (err) {
+//             console.error("Error hashing password:", err);
+//             return res.render('register.ejs', { errors: [{ message: 'Error hashing password.' }] });
+//         }
+
+//         let defaultRoleId = 2; // Adjust based on your roles setup
+//         let sqlquery = "INSERT INTO users (username, email, password, role_id) VALUES (?,?,?,?)";
+
+//         db.query(sqlquery, [username, email, hashedPassword, defaultRoleId], (err) => {
+//             if (err) {
+//                 if (err.code === 'ER_DUP_ENTRY') {
+//                     const errorMessage = err.sqlMessage.includes('users.username') ? 'Username already exists.' : 'Email already exists.';
+//                     return res.render('register.ejs', { errors: [{ message: errorMessage }] });
+//                 }
+//                 console.error("Error registering user:", err);
+//                 return res.render('register.ejs', { errors: [{ message: 'Error registering user.' }] });
+//             }
+//             // Redirect to login page or send a success message
+//             res.redirect('/login'); // Or `res.send('User registered successfully!');`
+//         });
+//     });
+// });
+
+// app.get('/login', (req, res) => {
+//     res.render('login.ejs');
+// });
+
+// app.post('/login', (req, res) => {
+//     res.send('POST request to public/auth/login');
+// });
+
+// app.get('/register', (req, res) => {
+//     res.render('register.ejs');
+// });
+
+// app.post('/register', (req, res) => {
+//     res.send('POST request to public/auth/register');
+// });
+
+
+
+
+// app.post('/register', [
+//     body('username')
+//         .trim()
+//         .isLength({ min: 2, max: 25 }).withMessage('Username must be between 2 to 25 characters.')
+//         .matches(/^[A-Za-z0-9_]+$/).withMessage('Username must be alphanumeric with underscores.'),
+//     body('email')
+//         .trim()
+//         .isEmail().withMessage('Invalid email address.'),
+//     body('password')
+//         .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long.')
+// ], (req, res) => {
+//     const errors = validationResult(req);
+//     if (!errors.isEmpty()) {
+//         const errorMessages = errors.array().map(error => ({ parameter: error.param, message: error.msg, value: error.value }));
+//         return res.render('register.ejs', { errors: errorMessages });
+//     }
+
+//     const { username, email, password } = req.body;
+//     const plainPassword = PEPPER + password;
+
+//     bcrypt.hash(plainPassword, saltRounds, function (err, hashedPassword) {
+//         if (err) {
+//             console.error("Error hashing password:", err);
+//             return res.render('register.ejs', { errors: [{ message: 'Error hashing password.' }] });
+//         }
+
+//         let defaultRoleId = 2; // Adjust based on your roles setup
+//         let sqlquery = "INSERT INTO users (username, email, password, role_id) VALUES (?,?,?,?)";
+
+//         db.query(sqlquery, [username, email, hashedPassword, defaultRoleId], (err) => {
+//             if (err) {
+//                 if (err.code === 'ER_DUP_ENTRY') {
+//                     const errorMessage = err.sqlMessage.includes('users.username') ? 'Username already exists.' : 'Email already exists.';
+//                     return res.render('register.ejs', { errors: [{ message: errorMessage }] });
+//                 }
+//                 console.error("Error registering user:", err);
+//                 return res.render('register.ejs', { errors: [{ message: 'Error registering user.' }] });
+//             }
+//             // Redirect to login page or send a success message
+//             res.redirect('/login'); // Or `res.send('User registered successfully!');`
+//         });
+//     });
+// });
+
+
+async function findRoleId(roleName) {
+    return new Promise((resolve, reject) => {
+        db.query('SELECT role_id FROM userRoles WHERE role_name = ?', [roleName], (err, results) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(results[0]?.role_id);
+            }
+        });
+    });
+}
+
+
+
+app.get('/register', (req, res) => {
+    res.render('register.ejs');
+});
+
+
+
+
+app.post('/register', [
+    body('username')
+        .trim()
+        .isLength({ min: 2, max: 25 }).withMessage('Username must be between 2 to 25 characters.')
+        .matches(/^[A-Za-z0-9_]+$/).withMessage('Username must be alphanumeric with underscores.'),
+    body('email')
+        .trim()
+        .isEmail().withMessage('Invalid email address.'),
+    body('password')
+        .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long.')
+], (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        const errorMessages = errors.array().map(error => ({ parameter: error.param, message: error.msg, value: error.value }));
+        return res.render('register.ejs', { errors: errorMessages });
+    }
+
+    const { username, email, password } = req.body;
+    const plainPassword = PEPPER + password;
+
+    bcrypt.hash(plainPassword, saltRounds, function (err, hashedPassword) {
+        if (err) {
+            console.error("Error hashing password:", err);
+            return res.render('register.ejs', { errors: [{ message: 'Error hashing password.' }] });
+        }
+
+        let defaultRoleId = 2; // Adjust based on your roles setup
+        let sqlquery = "INSERT INTO users (username, email, password, role_id) VALUES (?,?,?,?)";
+
+        db.query(sqlquery, [username, email, hashedPassword, defaultRoleId], (err) => {
+            if (err) {
+                if (err.code === 'ER_DUP_ENTRY') {
+                    const errorMessage = err.sqlMessage.includes('users.username') ? 'Username already exists.' : 'Email already exists.';
+                    return res.render('register.ejs', { errors: [{ message: errorMessage }] });
+                }
+                console.error("Error registering user:", err);
+                return res.render('register.ejs', { errors: [{ message: 'An error occurred during registration. Please try again.' }] });
+            }
+            res.redirect('/login');
+        });
+    });
+});
+
+
+app.get('/login', (req, res) => {
+    res.render('login.ejs');
+});
+
+// app.post('/login', [
+//     body('username')
+//         .trim()
+//         .escape()
+//         .isLength({ min: 2, max: 20 }).withMessage('Username must be between 2 to 20 characters.')
+//         .matches(/^[A-Za-z0-9_]+$/).withMessage('Username must be alphanumeric with underscores.'),
+//     body('password')
+//         .trim()
+//         .escape()
+//         .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long.')
+// ], (req, res) => {
+//     const errors = validationResult(req);
+//     if (!errors.isEmpty()) {
+//         const errorMessages = errors.array().map(error => ({ parameter: error.param, message: error.msg, value: error.value }));
+//         return res.render('login.ejs', { errors: errorMessages });
+//     }
+
+//     const { username, password } = req.body;
+//     const sqlquery = "SELECT user_id, password FROM users WHERE username = ?";
+
+//     db.query(sqlquery, [username], (err, results) => {
+//         if (err) {
+//             console.error("Database error:", err);
+//             return res.render('login.ejs', { errors: [{ message: 'Error logging in.' }] });
+//         }
+
+//         if (results.length === 0) {
+//             return res.render('login.ejs', { errors: [{ message: 'Invalid username or password.' }] });
+//         }
+
+//         const hashedPasswordFromDB = results[0].password;
+//         bcrypt.compare(PEPPER + password, hashedPasswordFromDB, (err, isMatch) => {
+//             if (err) {
+//                 console.error("Error comparing passwords:", err);
+//                 return res.render('login.ejs', { errors: [{ message: 'Error logging in.' }] });
+//             }
+//             if (isMatch) {
+//                 req.session.userId = results[0].user_id;
+//                 req.session.save(err => {
+//                     if (err) {
+//                         // Handle error
+//                         console.log("there was a error after match", err)
+//                     }
+//                     res.redirect('/userProfile');
+//                 });
+//             } else {
+//                 // Handle login failure
+//                 res.render('login.ejs', { errors: [{ message: 'Invalid username or password.' }] });
+//             }
+
+
+
+//             if (isMatch) {
+//                 req.session.userId = results[0].user_id;  // Assuming 'user_id' is the field name in your database
+//                 req.session.save(err => {
+//                     if (err) {
+//                         // Handle error
+//                         console.log("there was a error after match", err)
+//                     }
+
+//                     // req.session.userId = results[0].user_id;  // Assuming 'user_id' is the field name in your database
+//                     res.redirect('/userProfile'); // Redirect to the user's profile or dashboard
+//                 });
+
+//             } else {
+//                 res.render('login.ejs', { errors: [{ message: 'Invalid username or password.' }] });
+//             }
+//         });
+//     });
+// });
+
+app.post('/login', [
+    body('username')
+        .trim()
+        .escape()
+        .isLength({ min: 2, max: 20 }).withMessage('Username must be between 2 to 20 characters.')
+        .matches(/^[A-Za-z0-9_]+$/).withMessage('Username must be alphanumeric with underscores.'),
+    body('password')
+        .trim()
+        .escape()
+        .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long.')
+], (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        const errorMessages = errors.array().map(error => ({ parameter: error.param, message: error.msg, value: error.value }));
+        return res.render('login.ejs', { errors: errorMessages });
+    }
+
+    const { username, password } = req.body;
+    const sqlquery = "SELECT user_id, password FROM users WHERE username = ?";
+
+    db.query(sqlquery, [username], (err, results) => {
+        if (err) {
+            console.error("Database error:", err);
+            return res.render('login.ejs', { errors: [{ message: 'Error logging in.' }] });
+        }
+
+        if (results.length === 0) {
+            return res.render('login.ejs', { errors: [{ message: 'Invalid username or password.' }] });
+        }
+
+        const hashedPasswordFromDB = results[0].password;
+        bcrypt.compare(PEPPER + password, hashedPasswordFromDB, (err, isMatch) => {
+            if (err) {
+                console.error("Error comparing passwords:", err);
+                return res.render('login.ejs', { errors: [{ message: 'Error logging in.' }] });
+            }
+
+            if (isMatch) {
+                req.session.userId = results[0].user_id;
+                req.session.save(err => {
+                    if (err) {
+                        console.error("Error saving session:", err);
+                        return res.render('login.ejs', { errors: [{ message: 'Error logging in.' }] });
+                    }
+                    res.redirect('/userProfile');
+                });
+            } else {
+                res.render('login.ejs', { errors: [{ message: 'Invalid username or password.' }] });
+            }
+        });
+    });
+});
+
+
+
+
+app.get('/logout', (req, res) => {
+    req.session.destroy(err => {
+        if (err) {
+            console.error(err);
+            return res.status(500).send('Error logging out');
+        }
+        res.redirect('/login');
+    });
+});
+
+
+
+app.get('/userProfile', async (req, res) => {
+    console.log('req.sessionID => Session ID:', req.sessionID);
+    console.log('req.session => Session Data userId:', req.session);
+    console.log('req.session.userId => Session Data userId:', req.session.userId);
+    if (!req.session.userId) {
+        // Redirect to login page if not logged in
+        return res.redirect('/login');
+    }
+
+    try {
+        const userQuery = 'SELECT username, email, profile_picture, bio FROM users WHERE user_id = ?';
+        db.query(userQuery, [req.session.userId], (err, results) => {
+            if (err) {
+                console.error("Database error:", err);
+                return res.status(500).send('Error fetching user profile');
+            }
+            if (results.length === 0) {
+                return res.status(404).send('User not found');
+            }
+
+            const user = results[0];
+            res.render('userProfile', { user });
+        });
+    } catch (err) {
+        console.error("Error:", err);
+        res.status(500).send('Error fetching user profile');
+    }
+});
+
+
+app.post('/userProfile', (req, res) => {
+    res.send('POST request to userProfile');
+});
+
+
+
+
+// // Input validation and sanitization for login
+// app.post('/login', [
+//     body('username')
+//         .trim()
+//         .escape() // Sanitizing input to prevent XSS
+//         .isLength({ min: 2, max: 20 }).withMessage('Username must be between 2 to 20 characters.')
+//         .matches(/^[A-Za-z0-9_]+$/).withMessage('Username must be alphanumeric with underscores.'),
+//     body('password')
+//         .trim()
+//         .escape() // Sanitizing input to prevent XSS
+//         .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long.')
+//         .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d@$!%*?&]{8,}$/).withMessage('Password must contain at least one uppercase letter, one lowercase letter, and one number.'),
+// ], (req, res) => {
+//     const errors = validationResult(req);
+//     if (!errors.isEmpty()) {
+//         const errorMessages = errors.array().map(error => ({ parameter: error.param, message: error.msg, value: error.value }));
+//         return res.render('login.ejs', { errors: errorMessages });
+//     }
+
+//     const { username, password } = req.body;
+//     const sqlquery = "SELECT password FROM users WHERE username = ?";
+
+//     db.query(sqlquery, [username], (err, results) => {
+//         if (err) {
+//             console.error("Database error:", err);
+//             return res.render('login.ejs', { errors: [{ message: 'Error logging in.' }] });
+//         }
+
+//         if (results.length === 0) {
+//             return res.render('login.ejs', { errors: [{ message: 'Invalid username or password.' }] });
+//         }
+
+//         const hashedPasswordFromDB = results[0].password;
+//         bcrypt.compare(PEPPER + password, hashedPasswordFromDB, (err, isMatch) => {
+//             if (err) {
+//                 console.error("Error comparing passwords:", err);
+//                 return res.render('login.ejs', { errors: [{ message: 'Error logging in.' }] });
+//             }
+
+//             if (isMatch) {
+//                 // Logic after successful login, e.g., setting up session
+//                 // For demonstration:
+//                 res.send('Login successful!');
+//             } else {
+//                 res.render('login.ejs', { errors: [{ message: 'Invalid username or password.' }] });
+//             }
+//         });
+//     });
+// });
+
+// Logout Route
+app.get('/logout', (req, res) => {
+    req.session.destroy(err => {
+        if (err) {
+            console.error(err);
+            // Generic error message
+            return res.status(500).send('Error occurred while logging out. Please try again.');
+        }
+        res.redirect('/login');
+    });
+});
+
+
+
+
+app.get('/addbook', function (req, res) {
+    const sqlquery = "SELECT * FROM publishers";
+    db.query(sqlquery, (err, publishers) => {
+        if (err) {
+            return res.status(500).send('There was a problem retrieving publishers. Please try again later.');
+        } else {
+            res.render('addbook.ejs', {
+                ...shopData,      // This unpacks ...shopData and sends its properties to the view
+                publishers: publishers
+            });
+        }
+    });
+});
+
+
+
+
+
+app.get('/', (req, res) => {
+    res.render('index', { products });
+});
+
+app.post('/', (req, res) => {
+    res.send('POST request to index');
+});
+
+// Example database query inside a route
+app.get('/example', (req, res) => {
+    db.query('SELECT * FROM userRoles', (err, results) => {
+        if (err) throw err;
+        res.send(results);
+    });
+});
+
+
+app.get('/dashboard', (req, res) => {
+    // res.render('dashboard.ejs');
+    res.render('dashboard', { user: req.session.user });
+});
+// This is going to be the dashboard
+app.post('/dashboard', async (req, res) => {
+    const { prompt, negative_prompt, steps, seed, width, height, cfg_scale } = req.body;
+    try {
+        const response = await axios.post('https://Some random numbers for ngrock.ngrok-free.app/generateImage', {
+            prompt,
+            negative_prompt,
+            steps,
+            seed,
+            width,
+            height,
+            cfg_scale
+        });
+
+        // Send the image data back to the client
+        const imageHex = response.data.imageHex;
+        res.json({ imageHex });
+    } catch (error) {
+        console.error(`Error: ${error.message}`);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+function dataURLtoFile(dataurl, filename) {
+
+    var arr = dataurl.split(','),
+        mime = arr[0].match(/:(.*?);/)[1],
+        bstr = atob(arr[1]),
+        n = bstr.length,
+        u8arr = new Uint8Array(n);
+
+    while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+    }
+
+    return new File([u8arr], filename, { type: mime });
+}
+
+//Usage example:
+var file = dataURLtoFile('data:text/plain;base64,aGVsbG8gd29ybGQ=', 'hello.txt');
+console.log(file);
+
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'uploads/')
+    },
+    filename: (req, file, cb) => {
+        cb(null, file.originalname)
+    }
+});
+
+
+
+// Endpoint to list all images in a bucket
+app.get('/images', (req, res) => {
+    const bucketName = 'aidashboardbucket';
+    console.log("imagesss-------------");
+
+    const objects = [];
+
+    minioClient.listObjectsV2(bucketName, '', true, "1000")
+        .on("error", error => {
+            console.log(error)
+            return res.status(500).send(error)
+        })
+        .on('data', data => {
+            // console.log("data")
+            objects.push(data)
+        })
+        .on('end', () => {
+            console.log("end")
+            let html = '<h1>Images</h1>';
+            console.log(objects)
+            objects.forEach(file => {
+                html += `<div><img src="/images/${file.name}" style="width:200px;"><p>${file.name}</p></div>`;
+            });
+            res.send(html);
+        })
+});
+
+
+
+app.get('/images/:imageName', (req, res) => {
+    const bucketName = 'aidashboardbucket';
+    const objectName = req.params.imageName;
+
+    minioClient.getObject(bucketName, objectName, (err, stream) => {
+        if (err) {
+            res.status(500).send(err);
+            return;
+        }
+        res.setHeader('Content-Type', 'image/png'); // Set the appropriate content-type
+        stream.pipe(res);
+    });
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Test functionality for database
+app.get('/addbook', (req, res) => {
+    res.render('addbook.ejs');
+});
+
+app.post('/addbook', (req, res) => {
+    res.send('POST request to addbook');
+});
+
+
+// Test queries for listing 
+app.get('/list', (req, res) => {
+    res.render('ejs');
+});
+
+app.post('/list', (req, res) => {
+    res.send('POST request to list');
+});
+
+
+
+app.get('/adminPanel', (req, res) => {
+    res.render('adminPanel.ejs');
+});
+
+app.post('/adminPanel', (req, res) => {
+    res.send('POST request to admin/adminPanel');
+});
+
+app.get('/affiliate', (req, res) => {
+    res.render('affiliate.ejs');
+});
+
+app.post('/affiliate', (req, res) => {
+    res.send('POST request to affiliate/affiliate');
+});
+
+app.get('/DevelopersAPI', (req, res) => {
+    res.render('DevelopersAPI');
+});
+
+app.post('/DevelopersAPI', (req, res) => {
+    res.send('POST request to /DevelopersAPI');
+});
+
+app.get('/addBlogPost', (req, res) => {
+    res.render('addBlogPost.ejs');
+});
+
+app.post('/addBlogPost', (req, res) => {
+    res.send('POST request to blog/addBlogPost');
+});
+
+app.get('/blogDetail', (req, res) => {
+    res.render('blogDetail.ejs');
+});
+
+app.post('/blogDetail', (req, res) => {
+    res.send('POST request to blog/blogDetail');
+});
+
+app.get('/courses', (req, res) => {
+    res.render('courses.ejs');
+});
+
+app.post('/courses', (req, res) => {
+    res.send('POST request to courses/courses');
+});
+
+app.get('/mygallery', (req, res) => {
+    res.render('mygallery.ejs');
+});
+
+app.post('/mygallery', (req, res) => {
+    res.send('POST request to mygallery/mygallery');
+});
+
+app.get('/bargains', (req, res) => {
+    res.render('bargains.ejs');
+});
+
+app.post('/bargains', (req, res) => {
+    res.send('POST request to shop/bargains');
+});
+
+app.get('/extensionsProductPage', (req, res) => {
+    res.render('extensionsProductPage.ejs');
+});
+
+app.post('/extensionsProductPage', (req, res) => {
+    res.send('POST request to shop/extensionsProductPage');
+});
+
+app.get('/extensionsShop', (req, res) => {
+    res.render('extensionsShop.ejs');
+});
+
+app.post('/extensionsShop', (req, res) => {
+    res.send('POST request to shop/extensionsShop');
+});
+
+app.get('/search', (req, res) => {
+    res.render('search.ejs');
+});
+
+app.post('/search', (req, res) => {
+    res.send('POST request to shop/search');
+});
+
+
+app.get('/likedBlogs', (req, res) => {
+    res.render('likedBlogs.ejs');
+});
+
+app.post('/likedBlogs', (req, res) => {
+    res.send('POST request to user/likedBlogs');
+});
+
+app.get('/notifications', (req, res) => {
+    res.render('notifications.ejs');
+});
+
+app.post('/notifications', (req, res) => {
+    res.send('POST request to user/notifications');
+});
+
+
+
+
+
+
+app.get('/blog', (req, res) => {
+    res.render('blog.ejs');
+});
+
+app.post('/blog', (req, res) => {
+    res.send('POST request to public/blog/blog');
+});
+
+app.get('/contactUs', (req, res) => {
+    res.render('contactUs.ejs');
+});
+
+app.post('/contactUs', (req, res) => {
+    res.send('POST request to public/contact/contactUs');
+});
+
+app.get('/errorPage', (req, res) => {
+    console.log("test from errorPage")
+    res.render('errorPage.ejs');
+});
+
+app.post('/errorPage', (req, res) => {
+    res.send('POST request to public/errorPage');
+});
+
+app.get('/gallery', (req, res) => {
+    res.render('gallery.ejs');
+});
+
+app.post('/gallery', (req, res) => {
+    res.send('POST request to public/gallery');
+});
+
+app.get('/about', (req, res) => {
+    res.render('about.ejs');
+});
+
+app.post('/about', (req, res) => {
+    res.send('POST request to public/home/about');
+});
+
+
+
+
+app.get('/privacyPolicy', (req, res) => {
+    res.render('privacyPolicy.ejs');
+});
+
+app.post('/privacyPolicy', (req, res) => {
+    res.send('POST request to public/privacyPolicy');
+});
+
+app.get('/SalesFunnelVideo', (req, res) => {
+    res.render('SalesFunnelVideo.ejs');
+});
+
+app.post('/SalesFunnelVideo', (req, res) => {
+    res.send('POST request to public/SalesFunnelVideo');
+});
+
+app.get('/termsOfUse', (req, res) => {
+    res.render('termsOfUse.ejs');
+});
+
+app.post('/termsOfUse', (req, res) => {
+    res.send('POST request to public/termsOfUse');
+});
+
+
+
+app.get('/loginProto', (req, res) => {
+    res.render('loginProto.ejs');
+});
+
+app.post('/loginProto', (req, res) => {
+    res.send('POST request to public/loginProto');
+});
+
+
+
+// Start the server
+app.listen(port, () => {
+    console.log(`Express.js boilerplate app listening at http://localhost:${port}`);
+});
+
+
+
 // s
 // metadata: { userId: req.session.userId },
 // metadata: { userId: req.session.userId.toString() },
@@ -1600,856 +2832,3 @@ app.post('/checkout/:productId', async (req, res) => {
 //     // Handle the checkout.session.completed event
 //     if (event.type === 'checkout.session.completed') {
 //         const session = event.data.object;
-console.log("session", JSON.stringify(session))
-
-//         // Retrieve the user by email and update their subscription status
-//         try {
-//             const userEmail = session.customer_email;
-//             const subscriptionId = session.subscription; // This is the Stripe subscription ID
-
-//             const updateQuery = 'UPDATE users SET subscription_id = ? WHERE email = ?';
-//             await db.promise().query(updateQuery, [subscriptionId, userEmail]);
-
-//             console.log(`Subscription updated for user: ${userEmail}`);
-//         } catch (updateError) {
-//             console.error('Error updating user subscription:', updateError);
-//         }
-//     }
-
-//     // Return a response to acknowledge receipt of the event
-//     res.json({ received: true });
-// });
-
-
-
-app.get('/plans', (req, res) => {
-
-    res.render('plans.ejs', { products });
-});
-
-app.post('/plans', (req, res) => {
-    res.send('POST request to public/plans');
-});
-
-app.get('/payment-success', (req, res) => {
-    res.render('success');
-});
-
-app.get('/payment-cancelled', (req, res) => {
-    res.render('cancelled');
-});
-
-// app.post('/register', [
-//     body('username')
-//         .trim()
-//         .isLength({ min: 2, max: 25 }).withMessage('Username must be between 2 to 25 characters.')
-//         .matches(/^[A-Za-z0-9_]+$/).withMessage('Username must be alphanumeric with underscores.'),
-//     body('email')
-//         .trim()
-//         .isEmail().withMessage('Invalid email address.'),
-//     body('password')
-//         .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long.')
-// ], (req, res) => {
-//     const errors = validationResult(req);
-//     if (!errors.isEmpty()) {
-//         const errorMessages = errors.array().map(error => ({ parameter: error.param, message: error.msg, value: error.value }));
-//         return res.render('register.ejs', { errors: errorMessages });
-//     }
-
-//     const { username, email, password } = req.body;
-//     const plainPassword = PEPPER + password;
-
-//     bcrypt.hash(plainPassword, saltRounds, function (err, hashedPassword) {
-//         if (err) {
-//             console.error("Error hashing password:", err);
-//             return res.render('register.ejs', { errors: [{ message: 'Error hashing password.' }] });
-//         }
-
-//         let defaultRoleId = 2; // Adjust based on your roles setup
-//         let sqlquery = "INSERT INTO users (username, email, password, role_id) VALUES (?,?,?,?)";
-
-//         db.query(sqlquery, [username, email, hashedPassword, defaultRoleId], (err) => {
-//             if (err) {
-//                 if (err.code === 'ER_DUP_ENTRY') {
-//                     const errorMessage = err.sqlMessage.includes('users.username') ? 'Username already exists.' : 'Email already exists.';
-//                     return res.render('register.ejs', { errors: [{ message: errorMessage }] });
-//                 }
-//                 console.error("Error registering user:", err);
-//                 return res.render('register.ejs', { errors: [{ message: 'Error registering user.' }] });
-//             }
-//             // Redirect to login page or send a success message
-//             res.redirect('/login'); // Or `res.send('User registered successfully!');`
-//         });
-//     });
-// });
-
-// app.get('/login', (req, res) => {
-//     res.render('login.ejs');
-// });
-
-// app.post('/login', (req, res) => {
-//     res.send('POST request to public/auth/login');
-// });
-
-// app.get('/register', (req, res) => {
-//     res.render('register.ejs');
-// });
-
-// app.post('/register', (req, res) => {
-//     res.send('POST request to public/auth/register');
-// });
-
-
-
-
-// app.post('/register', [
-//     body('username')
-//         .trim()
-//         .isLength({ min: 2, max: 25 }).withMessage('Username must be between 2 to 25 characters.')
-//         .matches(/^[A-Za-z0-9_]+$/).withMessage('Username must be alphanumeric with underscores.'),
-//     body('email')
-//         .trim()
-//         .isEmail().withMessage('Invalid email address.'),
-//     body('password')
-//         .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long.')
-// ], (req, res) => {
-//     const errors = validationResult(req);
-//     if (!errors.isEmpty()) {
-//         const errorMessages = errors.array().map(error => ({ parameter: error.param, message: error.msg, value: error.value }));
-//         return res.render('register.ejs', { errors: errorMessages });
-//     }
-
-//     const { username, email, password } = req.body;
-//     const plainPassword = PEPPER + password;
-
-//     bcrypt.hash(plainPassword, saltRounds, function (err, hashedPassword) {
-//         if (err) {
-//             console.error("Error hashing password:", err);
-//             return res.render('register.ejs', { errors: [{ message: 'Error hashing password.' }] });
-//         }
-
-//         let defaultRoleId = 2; // Adjust based on your roles setup
-//         let sqlquery = "INSERT INTO users (username, email, password, role_id) VALUES (?,?,?,?)";
-
-//         db.query(sqlquery, [username, email, hashedPassword, defaultRoleId], (err) => {
-//             if (err) {
-//                 if (err.code === 'ER_DUP_ENTRY') {
-//                     const errorMessage = err.sqlMessage.includes('users.username') ? 'Username already exists.' : 'Email already exists.';
-//                     return res.render('register.ejs', { errors: [{ message: errorMessage }] });
-//                 }
-//                 console.error("Error registering user:", err);
-//                 return res.render('register.ejs', { errors: [{ message: 'Error registering user.' }] });
-//             }
-//             // Redirect to login page or send a success message
-//             res.redirect('/login'); // Or `res.send('User registered successfully!');`
-//         });
-//     });
-// });
-
-
-async function findRoleId(roleName) {
-    return new Promise((resolve, reject) => {
-        db.query('SELECT role_id FROM userRoles WHERE role_name = ?', [roleName], (err, results) => {
-            if (err) {
-                reject(err);
-            } else {
-                resolve(results[0]?.role_id);
-            }
-        });
-    });
-}
-
-
-
-app.get('/register', (req, res) => {
-    res.render('register.ejs');
-});
-
-
-
-
-app.post('/register', [
-    body('username')
-        .trim()
-        .isLength({ min: 2, max: 25 }).withMessage('Username must be between 2 to 25 characters.')
-        .matches(/^[A-Za-z0-9_]+$/).withMessage('Username must be alphanumeric with underscores.'),
-    body('email')
-        .trim()
-        .isEmail().withMessage('Invalid email address.'),
-    body('password')
-        .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long.')
-], (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        const errorMessages = errors.array().map(error => ({ parameter: error.param, message: error.msg, value: error.value }));
-        return res.render('register.ejs', { errors: errorMessages });
-    }
-
-    const { username, email, password } = req.body;
-    const plainPassword = PEPPER + password;
-
-    bcrypt.hash(plainPassword, saltRounds, function (err, hashedPassword) {
-        if (err) {
-            console.error("Error hashing password:", err);
-            return res.render('register.ejs', { errors: [{ message: 'Error hashing password.' }] });
-        }
-
-        let defaultRoleId = 2; // Adjust based on your roles setup
-        let sqlquery = "INSERT INTO users (username, email, password, role_id) VALUES (?,?,?,?)";
-
-        db.query(sqlquery, [username, email, hashedPassword, defaultRoleId], (err) => {
-            if (err) {
-                if (err.code === 'ER_DUP_ENTRY') {
-                    const errorMessage = err.sqlMessage.includes('users.username') ? 'Username already exists.' : 'Email already exists.';
-                    return res.render('register.ejs', { errors: [{ message: errorMessage }] });
-                }
-                console.error("Error registering user:", err);
-                return res.render('register.ejs', { errors: [{ message: 'An error occurred during registration. Please try again.' }] });
-            }
-            res.redirect('/login');
-        });
-    });
-});
-
-
-app.get('/login', (req, res) => {
-    res.render('login.ejs');
-});
-
-// app.post('/login', [
-//     body('username')
-//         .trim()
-//         .escape()
-//         .isLength({ min: 2, max: 20 }).withMessage('Username must be between 2 to 20 characters.')
-//         .matches(/^[A-Za-z0-9_]+$/).withMessage('Username must be alphanumeric with underscores.'),
-//     body('password')
-//         .trim()
-//         .escape()
-//         .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long.')
-// ], (req, res) => {
-//     const errors = validationResult(req);
-//     if (!errors.isEmpty()) {
-//         const errorMessages = errors.array().map(error => ({ parameter: error.param, message: error.msg, value: error.value }));
-//         return res.render('login.ejs', { errors: errorMessages });
-//     }
-
-//     const { username, password } = req.body;
-//     const sqlquery = "SELECT user_id, password FROM users WHERE username = ?";
-
-//     db.query(sqlquery, [username], (err, results) => {
-//         if (err) {
-//             console.error("Database error:", err);
-//             return res.render('login.ejs', { errors: [{ message: 'Error logging in.' }] });
-//         }
-
-//         if (results.length === 0) {
-//             return res.render('login.ejs', { errors: [{ message: 'Invalid username or password.' }] });
-//         }
-
-//         const hashedPasswordFromDB = results[0].password;
-//         bcrypt.compare(PEPPER + password, hashedPasswordFromDB, (err, isMatch) => {
-//             if (err) {
-//                 console.error("Error comparing passwords:", err);
-//                 return res.render('login.ejs', { errors: [{ message: 'Error logging in.' }] });
-//             }
-//             if (isMatch) {
-//                 req.session.userId = results[0].user_id;
-//                 req.session.save(err => {
-//                     if (err) {
-//                         // Handle error
-//                         console.log("there was a error after match", err)
-//                     }
-//                     res.redirect('/userProfile');
-//                 });
-//             } else {
-//                 // Handle login failure
-//                 res.render('login.ejs', { errors: [{ message: 'Invalid username or password.' }] });
-//             }
-
-
-
-//             if (isMatch) {
-//                 req.session.userId = results[0].user_id;  // Assuming 'user_id' is the field name in your database
-//                 req.session.save(err => {
-//                     if (err) {
-//                         // Handle error
-//                         console.log("there was a error after match", err)
-//                     }
-
-//                     // req.session.userId = results[0].user_id;  // Assuming 'user_id' is the field name in your database
-//                     res.redirect('/userProfile'); // Redirect to the user's profile or dashboard
-//                 });
-
-//             } else {
-//                 res.render('login.ejs', { errors: [{ message: 'Invalid username or password.' }] });
-//             }
-//         });
-//     });
-// });
-
-app.post('/login', [
-    body('username')
-        .trim()
-        .escape()
-        .isLength({ min: 2, max: 20 }).withMessage('Username must be between 2 to 20 characters.')
-        .matches(/^[A-Za-z0-9_]+$/).withMessage('Username must be alphanumeric with underscores.'),
-    body('password')
-        .trim()
-        .escape()
-        .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long.')
-], (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        const errorMessages = errors.array().map(error => ({ parameter: error.param, message: error.msg, value: error.value }));
-        return res.render('login.ejs', { errors: errorMessages });
-    }
-
-    const { username, password } = req.body;
-    const sqlquery = "SELECT user_id, password FROM users WHERE username = ?";
-
-    db.query(sqlquery, [username], (err, results) => {
-        if (err) {
-            console.error("Database error:", err);
-            return res.render('login.ejs', { errors: [{ message: 'Error logging in.' }] });
-        }
-
-        if (results.length === 0) {
-            return res.render('login.ejs', { errors: [{ message: 'Invalid username or password.' }] });
-        }
-
-        const hashedPasswordFromDB = results[0].password;
-        bcrypt.compare(PEPPER + password, hashedPasswordFromDB, (err, isMatch) => {
-            if (err) {
-                console.error("Error comparing passwords:", err);
-                return res.render('login.ejs', { errors: [{ message: 'Error logging in.' }] });
-            }
-
-            if (isMatch) {
-                req.session.userId = results[0].user_id;
-                req.session.save(err => {
-                    if (err) {
-                        console.error("Error saving session:", err);
-                        return res.render('login.ejs', { errors: [{ message: 'Error logging in.' }] });
-                    }
-                    res.redirect('/userProfile');
-                });
-            } else {
-                res.render('login.ejs', { errors: [{ message: 'Invalid username or password.' }] });
-            }
-        });
-    });
-});
-
-
-
-
-app.get('/logout', (req, res) => {
-    req.session.destroy(err => {
-        if (err) {
-            console.error(err);
-            return res.status(500).send('Error logging out');
-        }
-        res.redirect('/login');
-    });
-});
-
-
-
-app.get('/userProfile', async (req, res) => {
-    console.log('req.sessionID => Session ID:', req.sessionID);
-    console.log('req.session => Session Data userId:', req.session);
-    console.log('req.session.userId => Session Data userId:', req.session.userId);
-    if (!req.session.userId) {
-        // Redirect to login page if not logged in
-        return res.redirect('/login');
-    }
-
-    try {
-        const userQuery = 'SELECT username, email, profile_picture, bio FROM users WHERE user_id = ?';
-        db.query(userQuery, [req.session.userId], (err, results) => {
-            if (err) {
-                console.error("Database error:", err);
-                return res.status(500).send('Error fetching user profile');
-            }
-            if (results.length === 0) {
-                return res.status(404).send('User not found');
-            }
-
-            const user = results[0];
-            res.render('userProfile', { user });
-        });
-    } catch (err) {
-        console.error("Error:", err);
-        res.status(500).send('Error fetching user profile');
-    }
-});
-
-
-app.post('/userProfile', (req, res) => {
-    res.send('POST request to userProfile');
-});
-
-
-
-
-// // Input validation and sanitization for login
-// app.post('/login', [
-//     body('username')
-//         .trim()
-//         .escape() // Sanitizing input to prevent XSS
-//         .isLength({ min: 2, max: 20 }).withMessage('Username must be between 2 to 20 characters.')
-//         .matches(/^[A-Za-z0-9_]+$/).withMessage('Username must be alphanumeric with underscores.'),
-//     body('password')
-//         .trim()
-//         .escape() // Sanitizing input to prevent XSS
-//         .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long.')
-//         .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d@$!%*?&]{8,}$/).withMessage('Password must contain at least one uppercase letter, one lowercase letter, and one number.'),
-// ], (req, res) => {
-//     const errors = validationResult(req);
-//     if (!errors.isEmpty()) {
-//         const errorMessages = errors.array().map(error => ({ parameter: error.param, message: error.msg, value: error.value }));
-//         return res.render('login.ejs', { errors: errorMessages });
-//     }
-
-//     const { username, password } = req.body;
-//     const sqlquery = "SELECT password FROM users WHERE username = ?";
-
-//     db.query(sqlquery, [username], (err, results) => {
-//         if (err) {
-//             console.error("Database error:", err);
-//             return res.render('login.ejs', { errors: [{ message: 'Error logging in.' }] });
-//         }
-
-//         if (results.length === 0) {
-//             return res.render('login.ejs', { errors: [{ message: 'Invalid username or password.' }] });
-//         }
-
-//         const hashedPasswordFromDB = results[0].password;
-//         bcrypt.compare(PEPPER + password, hashedPasswordFromDB, (err, isMatch) => {
-//             if (err) {
-//                 console.error("Error comparing passwords:", err);
-//                 return res.render('login.ejs', { errors: [{ message: 'Error logging in.' }] });
-//             }
-
-//             if (isMatch) {
-//                 // Logic after successful login, e.g., setting up session
-//                 // For demonstration:
-//                 res.send('Login successful!');
-//             } else {
-//                 res.render('login.ejs', { errors: [{ message: 'Invalid username or password.' }] });
-//             }
-//         });
-//     });
-// });
-
-// Logout Route
-app.get('/logout', (req, res) => {
-    req.session.destroy(err => {
-        if (err) {
-            console.error(err);
-            // Generic error message
-            return res.status(500).send('Error occurred while logging out. Please try again.');
-        }
-        res.redirect('/login');
-    });
-});
-
-
-
-
-app.get('/addbook', function (req, res) {
-    const sqlquery = "SELECT * FROM publishers";
-    db.query(sqlquery, (err, publishers) => {
-        if (err) {
-            return res.status(500).send('There was a problem retrieving publishers. Please try again later.');
-        } else {
-            res.render('addbook.ejs', {
-                ...shopData,      // This unpacks ...shopData and sends its properties to the view
-                publishers: publishers
-            });
-        }
-    });
-});
-
-
-
-
-
-app.get('/', (req, res) => {
-    res.render('index', { products });
-});
-
-app.post('/', (req, res) => {
-    res.send('POST request to index');
-});
-
-// Example database query inside a route
-app.get('/example', (req, res) => {
-    db.query('SELECT * FROM userRoles', (err, results) => {
-        if (err) throw err;
-        res.send(results);
-    });
-});
-
-
-app.get('/dashboard', (req, res) => {
-    // res.render('dashboard.ejs');
-    res.render('dashboard', { user: req.session.user });
-});
-// This is going to be the dashboard
-app.post('/dashboard', async (req, res) => {
-    const { prompt, negative_prompt, steps, seed, width, height, cfg_scale } = req.body;
-    try {
-        const response = await axios.post('https://Some random numbers for ngrock.ngrok-free.app/generateImage', {
-            prompt,
-            negative_prompt,
-            steps,
-            seed,
-            width,
-            height,
-            cfg_scale
-        });
-
-        // Send the image data back to the client
-        const imageHex = response.data.imageHex;
-        res.json({ imageHex });
-    } catch (error) {
-        console.error(`Error: ${error.message}`);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-function dataURLtoFile(dataurl, filename) {
-
-    var arr = dataurl.split(','),
-        mime = arr[0].match(/:(.*?);/)[1],
-        bstr = atob(arr[1]),
-        n = bstr.length,
-        u8arr = new Uint8Array(n);
-
-    while (n--) {
-        u8arr[n] = bstr.charCodeAt(n);
-    }
-
-    return new File([u8arr], filename, { type: mime });
-}
-
-//Usage example:
-var file = dataURLtoFile('data:text/plain;base64,aGVsbG8gd29ybGQ=', 'hello.txt');
-console.log(file);
-
-
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'uploads/')
-    },
-    filename: (req, file, cb) => {
-        cb(null, file.originalname)
-    }
-});
-
-
-
-// Endpoint to list all images in a bucket
-app.get('/images', (req, res) => {
-    const bucketName = 'aidashboardbucket';
-    console.log("imagesss-------------");
-
-    const objects = [];
-
-    minioClient.listObjectsV2(bucketName, '', true, "1000")
-        .on("error", error => {
-            console.log(error)
-            return res.status(500).send(error)
-        })
-        .on('data', data => {
-            // console.log("data")
-            objects.push(data)
-        })
-        .on('end', () => {
-            console.log("end")
-            let html = '<h1>Images</h1>';
-            console.log(objects)
-            objects.forEach(file => {
-                html += `<div><img src="/images/${file.name}" style="width:200px;"><p>${file.name}</p></div>`;
-            });
-            res.send(html);
-        })
-});
-
-
-
-app.get('/images/:imageName', (req, res) => {
-    const bucketName = 'aidashboardbucket';
-    const objectName = req.params.imageName;
-
-    minioClient.getObject(bucketName, objectName, (err, stream) => {
-        if (err) {
-            res.status(500).send(err);
-            return;
-        }
-        res.setHeader('Content-Type', 'image/png'); // Set the appropriate content-type
-        stream.pipe(res);
-    });
-});
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// Test functionality for database
-app.get('/addbook', (req, res) => {
-    res.render('addbook.ejs');
-});
-
-app.post('/addbook', (req, res) => {
-    res.send('POST request to addbook');
-});
-
-
-// Test queries for listing 
-app.get('/list', (req, res) => {
-    res.render('ejs');
-});
-
-app.post('/list', (req, res) => {
-    res.send('POST request to list');
-});
-
-
-
-app.get('/adminPanel', (req, res) => {
-    res.render('adminPanel.ejs');
-});
-
-app.post('/adminPanel', (req, res) => {
-    res.send('POST request to admin/adminPanel');
-});
-
-app.get('/affiliate', (req, res) => {
-    res.render('affiliate.ejs');
-});
-
-app.post('/affiliate', (req, res) => {
-    res.send('POST request to affiliate/affiliate');
-});
-
-app.get('/DevelopersAPI', (req, res) => {
-    res.render('DevelopersAPI');
-});
-
-app.post('/DevelopersAPI', (req, res) => {
-    res.send('POST request to /DevelopersAPI');
-});
-
-app.get('/addBlogPost', (req, res) => {
-    res.render('addBlogPost.ejs');
-});
-
-app.post('/addBlogPost', (req, res) => {
-    res.send('POST request to blog/addBlogPost');
-});
-
-app.get('/blogDetail', (req, res) => {
-    res.render('blogDetail.ejs');
-});
-
-app.post('/blogDetail', (req, res) => {
-    res.send('POST request to blog/blogDetail');
-});
-
-app.get('/courses', (req, res) => {
-    res.render('courses.ejs');
-});
-
-app.post('/courses', (req, res) => {
-    res.send('POST request to courses/courses');
-});
-
-app.get('/mygallery', (req, res) => {
-    res.render('mygallery.ejs');
-});
-
-app.post('/mygallery', (req, res) => {
-    res.send('POST request to mygallery/mygallery');
-});
-
-app.get('/bargains', (req, res) => {
-    res.render('bargains.ejs');
-});
-
-app.post('/bargains', (req, res) => {
-    res.send('POST request to shop/bargains');
-});
-
-app.get('/extensionsProductPage', (req, res) => {
-    res.render('extensionsProductPage.ejs');
-});
-
-app.post('/extensionsProductPage', (req, res) => {
-    res.send('POST request to shop/extensionsProductPage');
-});
-
-app.get('/extensionsShop', (req, res) => {
-    res.render('extensionsShop.ejs');
-});
-
-app.post('/extensionsShop', (req, res) => {
-    res.send('POST request to shop/extensionsShop');
-});
-
-app.get('/search', (req, res) => {
-    res.render('search.ejs');
-});
-
-app.post('/search', (req, res) => {
-    res.send('POST request to shop/search');
-});
-
-
-app.get('/likedBlogs', (req, res) => {
-    res.render('likedBlogs.ejs');
-});
-
-app.post('/likedBlogs', (req, res) => {
-    res.send('POST request to user/likedBlogs');
-});
-
-app.get('/notifications', (req, res) => {
-    res.render('notifications.ejs');
-});
-
-app.post('/notifications', (req, res) => {
-    res.send('POST request to user/notifications');
-});
-
-
-
-
-
-
-app.get('/blog', (req, res) => {
-    res.render('blog.ejs');
-});
-
-app.post('/blog', (req, res) => {
-    res.send('POST request to public/blog/blog');
-});
-
-app.get('/contactUs', (req, res) => {
-    res.render('contactUs.ejs');
-});
-
-app.post('/contactUs', (req, res) => {
-    res.send('POST request to public/contact/contactUs');
-});
-
-app.get('/errorPage', (req, res) => {
-    console.log("test from errorPage")
-    res.render('errorPage.ejs');
-});
-
-app.post('/errorPage', (req, res) => {
-    res.send('POST request to public/errorPage');
-});
-
-app.get('/gallery', (req, res) => {
-    res.render('gallery.ejs');
-});
-
-app.post('/gallery', (req, res) => {
-    res.send('POST request to public/gallery');
-});
-
-app.get('/about', (req, res) => {
-    res.render('about.ejs');
-});
-
-app.post('/about', (req, res) => {
-    res.send('POST request to public/home/about');
-});
-
-
-
-
-app.get('/privacyPolicy', (req, res) => {
-    res.render('privacyPolicy.ejs');
-});
-
-app.post('/privacyPolicy', (req, res) => {
-    res.send('POST request to public/privacyPolicy');
-});
-
-app.get('/SalesFunnelVideo', (req, res) => {
-    res.render('SalesFunnelVideo.ejs');
-});
-
-app.post('/SalesFunnelVideo', (req, res) => {
-    res.send('POST request to public/SalesFunnelVideo');
-});
-
-app.get('/termsOfUse', (req, res) => {
-    res.render('termsOfUse.ejs');
-});
-
-app.post('/termsOfUse', (req, res) => {
-    res.send('POST request to public/termsOfUse');
-});
-
-
-
-app.get('/loginProto', (req, res) => {
-    res.render('loginProto.ejs');
-});
-
-app.post('/loginProto', (req, res) => {
-    res.send('POST request to public/loginProto');
-});
-
-
-
-// Start the server
-app.listen(port, () => {
-    console.log(`Express.js boilerplate app listening at http://localhost:${port}`);
-});
-
