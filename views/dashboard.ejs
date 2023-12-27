@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <title>Enhanced UI Mockup</title>
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+        background: linear-gradient(to bottom right, #eff0f3, #c8cdd0);
+        height: 100vh;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.5s, color 0.5s;
+        background-image: url("backimage.png");
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+      }
+
+      .main-container {
+        backdrop-filter: blur(15px);
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        padding: 2rem;
+        display: flex;
+        flex-direction: column;
+        max-width: 900px;
+        width: 90%;
+        margin: auto;
+      }
+
+      .card {
+        backdrop-filter: blur(10px);
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        padding: 1rem;
+        margin-top: 1rem;
+      }
+
+      .flex-row {
+        display: flex;
+        gap: 1rem;
+      }
+
+      .card img {
+        border-radius: 1rem;
+        max-width: 100%;
+        height: auto;
+      }
+
+      .dark-theme-toggle {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        background: rgba(255, 255, 255, 0.2);
+        border: none;
+        padding: 0.5rem;
+        border-radius: 1rem;
+        cursor: pointer;
+        backdrop-filter: blur(5px);
+      }
+
+      .input-field,
+      .button {
+        display: block;
+        width: 100%;
+        margin-top: 0.5rem;
+        padding: 0.5rem;
+        border-radius: 0.5rem;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      .button {
+        cursor: pointer;
+        background: rgba(255, 255, 255, 0.2);
+        transition: background-color 0.3s ease;
+      }
+
+      .button:hover {
+        background: rgba(255, 255, 255, 0.3);
+      }
+
+      .form-group {
+        margin-bottom: 1rem;
+      }
+
+      .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <button onclick="toggleDarkMode()" class="dark-theme-toggle">🌙</button>
+    <div class="main-container">
+      <div class="flex-row">
+
+        <!-- Left Image Section -->
+
+          <div class="card">
+            <div id="ImagesPlaceHolder" >
+              <img src="genImagesPlace1.png" alt="Stock Image" />
+            </div>
+            
+            <div id="loadingMessage" style="display: none">Loading...</div>
+            <img
+              id="generatedImage"
+              style="display: none"
+              alt="Generated Image"
+            />
+          </div>
+
+        <form id="imageForm" action="/" method="POST">
+          
+          <!-- Right Menu Section -->
+          <div class="card">
+            <div class="form-group">
+              <label for="prompt"></label>
+              <input
+                type="text"
+                id="prompt"
+                name="prompt"
+                class="input-field"
+                placeholder="Enter prompt"
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="negative-prompt">Negative Prompt</label>
+              <input
+                type="text"
+                id="negative-prompt"
+                name="negative_prompt"
+                class="input-field"
+                placeholder="Enter negative prompt"
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="seed">Seed</label>
+              <div class="flex-row">
+                <input
+                  type="number"
+                  id="seed"
+                  name="seed"
+                  class="input-field"
+                  placeholder="-1"
+                  value="-1"
+                />
+                <button type="submit" class="button">Randomize</button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="steps">Steps</label>
+              <input
+                type="range"
+                id="steps"
+                name="steps"
+                min="0"
+                max="100"
+                value="20"
+                class="input-field"
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="width">Width</label>
+              <input
+                type="number"
+                id="width"
+                name="width"
+                class="input-field"
+                placeholder="512"
+                value="512"
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="height">Height</label>
+              <input
+                type="number"
+                id="height"
+                name="height"
+                class="input-field"
+                placeholder="512"
+                value="512"
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="cfg-scale">CFG Scale</label>
+              <input
+                type="number"
+                id="cfg-scale"
+                name="cfg_scale"
+                class="input-field"
+                placeholder="7"
+                value="7"
+              />
+            </div>
+
+            <input type="submit" value="Generate Image" class="button" />
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!--     </div> -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script>
+      function toggleDarkMode() {
+        const currentTheme =
+          document.documentElement.getAttribute("data-theme");
+        if (currentTheme === "dark") {
+          document.documentElement.setAttribute("data-theme", "light");
+        } else {
+          document.documentElement.setAttribute("data-theme", "dark");
+        }
+      }
+
+      $(document).ready(function () {
+        $("#imageForm").submit(function (event) {
+          event.preventDefault(); // Prevent default form submission
+          $("#loadingMessage").show();
+          $("#generatedImage").hide();
+          $("#ImagesPlaceHolder").hide();
+          
+
+          $.ajax({
+            type: "POST",
+            url: "/", // Adjust if your endpoint is different
+            data: $(this).serialize(),
+            success: function (response) {
+              $("#loadingMessage").hide();
+              $("#generatedImage")
+                .attr("src", "data:image/jpeg;base64," + response.imageHex)
+                .show();
+            },
+            error: function () {
+              $("#loadingMessage").hide();
+              alert("Error generating image");
+            },
+          });
+        });
+      });
+    </script>
+  </body>
+</html>

@@ -37,8 +37,6 @@ const PEPPER = 'yourRandomStringHere'; // Replace with your actual pepper
 const bucketName = process.env.MINIO_BUCKET_NAME;
 
 
-
-
 // MySQL database connection
 const db = mysql.createConnection({
     host: process.env.DB_HOST,
@@ -70,6 +68,8 @@ const sessionStore = new MySQLStore({
     expiration: 86400000 // The maximum age of a valid session; 1 day
 });
 
+
+
 // app.use(session({
 //     key: 'ai_dashboard_session_cookie',
 //     secret: process.env.SESSION_SECRET,
@@ -83,6 +83,8 @@ const sessionStore = new MySQLStore({
 //         sameSite: 'lax' // Can be 'strict', 'lax', or 'none'. Helps mitigate CSRF attacks
 //     }
 // }));
+
+
 
 
 app.use(session({
@@ -116,44 +118,50 @@ console.log("endpointSecret", endpointSecret)
 
 
 
+app.post('/webhook', express.raw({ type: 'application/json' }), async (request, response) => {
+    const sig = request.headers['stripe-signature'];
 
-// app.post('/webhook', express.raw({ type: 'application/json' }),
-//     (request, response) => {
-//         const sig = request.headers['stripe-signature'];
+    let event;
 
-//         // Parse the JSON from the request body
-//         const requestBody = JSON.parse(request.body.toString());
+    try {
+        event = stripe.webhooks.constructEvent(request.body, sig, endpointSecret);
+    } catch (err) {
+        console.error('Webhook Error:', err.message);
+        response.status(400).send(`Webhook Error: ${err.message}`);
+        return;
+    }
 
-//         // Extract the userId from metadata before checking the event
-//         const userId = requestBody.data.object.metadata.userId;
-//         console.log("User ID:", userId);
+    console.log("Webhook received:", request.body.toString());
 
-//         // Extract the last item of the JSON file
-//         // Assuming you want the last item from an array within the JSON
-//         // Update the following line according to your JSON structure
-//         const lastItem = requestBody.data.object.someArray[requestBody.data.object.someArray.length - 1];
-//         console.log("Last item:", lastItem);
+    if (event.type === 'checkout.session.completed') {
+        const checkoutSession = event.data.object;
 
-//         let event;
+        const userId = checkoutSession.metadata.userId;
+        const stripeSubscriptionId = checkoutSession.subscription;
 
-//         try {
-//             // Construct the event using Stripe's library
-//             event = stripe.webhooks.constructEvent(request.body, sig, endpointSecret);
-//         } catch (err) {
-//             response.status(400).send(`Webhook Error: ${err.message}`);
-//             return;
-//         }
+        console.log("Checkout session completed for User ID:", userId);
+        console.log("Stripe Subscription ID:", stripeSubscriptionId);
 
-//         // Process the event
-//         if (event.type === 'checkout.session.completed') {
-//             // Handle the checkout session completed event
-//         } else {
-//             console.log(`Unhandled event type ${event.type}`);
-//         }
+        const updateQuery = `
+            UPDATE subscriptionHistory 
+            SET status = 'active', stripe_subscription_id = ?
+            WHERE user_id = ? AND status = 'pending'
+        `;
 
-//         // Return a 200 response to acknowledge receipt of the event
-//         response.status(200).send();
-//     });
+        try {
+            await executeDatabaseQuery(updateQuery, [stripeSubscriptionId, userId]);
+            console.log(`Subscriptions updated to active for user: ${userId}`);
+            response.status(200).send('Webhook processed successfully');
+        } catch (err) {
+            console.error('Error updating subscription status:', err);
+            response.status(500).send('Error processing webhook');
+        }
+    } else {
+        console.log(`Unhandled event type ${event.type}`);
+        response.status(200).send('Received unhandled event type');
+    }
+});
+
 
 
 
@@ -238,55 +246,54 @@ console.log("endpointSecret", endpointSecret)
 
 
 
-app.post('/webhook', express.raw({ type: 'application/json' }), async (request, response) => {
-    const sig = request.headers['stripe-signature'];
-
-    let event;
-
-    try {
-        // Construct the event using Stripe's library
-        event = stripe.webhooks.constructEvent(request.body, sig, endpointSecret);
-    } catch (err) {
-        response.status(400).send(`Webhook Error: ${err.message}`);
-        return;
-    }
-
-    // Check the event type
-    if (event.type === 'checkout.session.completed') {
-        const checkoutSession = event.data.object;
-
-        // Extract the user ID and Stripe subscription ID from the event
-        const userId = checkoutSession.metadata.userId;
-        const stripeSubscriptionId = checkoutSession.subscription;
-
-        console.log("Checkout session completed for User ID:", userId);
-        console.log("Stripe Subscription ID:", stripeSubscriptionId);
-
-        // Update subscription status in the database
-        const updateQuery = 'UPDATE subscriptionHistory SET status = ?, stripe_subscription_id = ? WHERE user_id = ? AND status = ?';
-
-        db.query(updateQuery, ['active', stripeSubscriptionId, userId, 'pending'], (err, results) => {
-            if (err) {
-                console.error('Error updating subscription status:', err);
-                response.status(500).send('Error processing webhook');
-                return;
-            }
-            console.log(`Subscription updated for user: ${userId}`);
-        });
-    } else {
-        console.log(`Unhandled event type ${event.type}`);
-    }
-
-    // Return a 200 response to acknowledge receipt of the event
-    response.status(200).send();
-});
 
 
+// app.post('/webhook', express.raw({ type: 'application/json' }), async (request, response) => {
+//     const sig = request.headers['stripe-signature'];
 
+//     let event;
 
+//     try {
+//         // Construct the event using Stripe's library
+//         event = stripe.webhooks.constructEvent(request.body, sig, endpointSecret);
+//     } catch (err) {
+//         console.error('Webhook Error:', err.message);
+//         return response.status(400).send(`Webhook Error: ${err.message}`);
+//     }
 
+//     // Log the entire request body for debugging
+//     console.log("Webhook received:", request.body.toString());
 
+//     if (event.type === 'checkout.session.completed') {
+//         const checkoutSession = event.data.object;
 
+//         // Extract the user ID and Stripe subscription ID from the event
+//         const userId = checkoutSession.metadata.userId;
+//         const stripeSubscriptionId = checkoutSession.subscription;
+
+//         console.log("Checkout session completed for User ID:", userId);
+//         console.log("Stripe Subscription ID:", stripeSubscriptionId);
+
+//         // Update all 'pending' subscription statuses for this user to 'active'
+//         const updateQuery = `
+//             UPDATE subscriptionHistory 
+//             SET status = 'active', stripe_subscription_id = ?
+//             WHERE user_id = ? AND status = 'pending'
+//         `;
+
+//         try {
+//             await executeDatabaseQuery(updateQuery, [stripeSubscriptionId, userId]);
+//             console.log(`Subscriptions updated to active for user: ${userId}`);
+//             response.status(200).send('Webhook processed successfully');
+//         } catch (err) {
+//             console.error('Error updating subscription status:', err);
+//             response.status(500).send('Error processing webhook');
+//         }
+//     } else {
+//         console.log(`Unhandled event type ${event.type}`);
+//         response.status(200).send('Received unhandled event type');
+//     }
+// });
 
 
 
@@ -505,6 +512,65 @@ function executeDatabaseQuery(query, params = []) {
     });
 }
 
+// app.post('/checkout/:productId', async (req, res) => {
+//     if (!req.session.userId) {
+//         return res.status(403).send('User not authenticated');
+//     }
+
+//     const userId = req.session.userId;
+//     const productId = parseInt(req.params.productId);
+//     const product = products.find(p => p.id === productId);
+
+//     if (!product) {
+//         return res.status(404).send('Product not found');
+//     }
+
+//     // Assuming you have a way to get the subscription ID from the product
+//     // Example: const subscriptionId = getSubscriptionIdFromProduct(product);
+//     // For now, I'm using the product ID itself
+//     const subscriptionId = product.id;
+
+//     const insertQuery = `
+//         INSERT INTO subscriptionHistory (user_id, subscription_id, status)
+//         VALUES (?, ?, 'pending')
+//     `;
+
+//     try {
+//         // First, check if the user exists
+//         const userCheckQuery = 'SELECT * FROM users WHERE user_id = ?';
+//         const userCheckResult = await executeDatabaseQuery(userCheckQuery, [userId]);
+
+//         if (userCheckResult.length === 0) {
+//             return res.status(404).send('User not found');
+//         }
+
+//         // Then, insert the pending record
+//         await executeDatabaseQuery(insertQuery, [userId, subscriptionId]);
+
+//         // Create Stripe checkout session
+//         const session = await stripe.checkout.sessions.create({
+//             mode: 'subscription',
+//             line_items: [{
+//                 price: product.priceID,
+//                 quantity: 1,
+//             }],
+//             metadata: {
+//                 userId: userId.toString(),
+//             },
+//             success_url: `${req.headers.origin}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+//             cancel_url: `${req.headers.origin}/payment-cancelled`,
+//         });
+
+//         res.json({ url: session.url });
+//     } catch (error) {
+//         console.error(`Error processing subscription for user ID ${userId}:`, error);
+//         res.status(500).send({ error: error.message });
+//     }
+// });
+
+
+
+
 app.post('/checkout/:productId', async (req, res) => {
     if (!req.session.userId) {
         return res.status(403).send('User not authenticated');
@@ -518,18 +584,10 @@ app.post('/checkout/:productId', async (req, res) => {
         return res.status(404).send('Product not found');
     }
 
-    // Assuming you have a way to get the subscription ID from the product
-    // Example: const subscriptionId = getSubscriptionIdFromProduct(product);
-    // For now, I'm using the product ID itself
-    const subscriptionId = product.id;
-
-    const insertQuery = `
-        INSERT INTO subscriptionHistory (user_id, subscription_id, status)
-        VALUES (?, ?, 'pending')
-    `;
+    const subscriptionId = product.id; // or use a method to get the correct subscription_id
 
     try {
-        // First, check if the user exists
+        // Check if the user exists
         const userCheckQuery = 'SELECT * FROM users WHERE user_id = ?';
         const userCheckResult = await executeDatabaseQuery(userCheckQuery, [userId]);
 
@@ -537,7 +595,27 @@ app.post('/checkout/:productId', async (req, res) => {
             return res.status(404).send('User not found');
         }
 
-        // Then, insert the pending record
+        // Check for existing subscriptions
+        const existingSubscriptionsQuery = `
+            SELECT * FROM subscriptionHistory
+            WHERE user_id = ? AND status = 'active'
+        `;
+        const existingSubscriptions = await executeDatabaseQuery(existingSubscriptionsQuery, [userId]);
+
+        // Determine if the user is trying to subscribe to an already active subscription
+        const isAlreadySubscribed = existingSubscriptions.some(sub => sub.subscription_id === subscriptionId);
+
+        if (isAlreadySubscribed) {
+            return res.status(409).send('You are already subscribed to this plan');
+        }
+
+        // Here you can handle subscription upgrades or other logic
+
+        // Insert a new pending subscription record
+        const insertQuery = `
+            INSERT INTO subscriptionHistory (user_id, subscription_id, status)
+            VALUES (?, ?, 'pending')
+        `;
         await executeDatabaseQuery(insertQuery, [userId, subscriptionId]);
 
         // Create Stripe checkout session
@@ -560,6 +638,7 @@ app.post('/checkout/:productId', async (req, res) => {
         res.status(500).send({ error: error.message });
     }
 });
+
 
 
 
@@ -1132,11 +1211,38 @@ app.get('/dashboard', (req, res) => {
     // res.render('dashboard.ejs');
     res.render('dashboard', { user: req.session.user });
 });
+
+
+
+
+app.post('/', async (req, res) => {
+    const { prompt, negative_prompt, steps, seed, width, height, cfg_scale } = req.body;
+    try {
+        const response = await axios.post('https://a0f8-147-12-195-79.ngrok-free.app/generateImage', {
+            prompt,
+            negative_prompt,
+            steps,
+            seed,
+            width,
+            height,
+            cfg_scale
+        });
+
+        // Send the image data back to the client
+        const imageHex = response.data.imageHex;
+        res.json({ imageHex });
+    } catch (error) {
+        console.error(`Error: ${error.message}`);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
 // This is going to be the dashboard
 app.post('/dashboard', async (req, res) => {
     const { prompt, negative_prompt, steps, seed, width, height, cfg_scale } = req.body;
     try {
-        const response = await axios.post('https://Some random numbers for ngrock.ngrok-free.app/generateImage', {
+        const response = await axios.post('https://a0f8-147-12-195-79.ngrok-free.app/generateImage', {
             prompt,
             negative_prompt,
             steps,
