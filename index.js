@@ -2,7 +2,7 @@
 const express = require('express');
 const ejs = require('ejs');
 require('dotenv').config();
-const mysql = require('mysql');
+const mysql = require('mysql2');
 const multer = require('multer');
 const crypto = require('crypto');
 // const bodyParser = require('body-parser')
@@ -37,13 +37,42 @@ const PEPPER = 'yourRandomStringHere'; // Replace with your actual pepper
 const bucketName = process.env.MINIO_BUCKET_NAME;
 
 
-// MySQL database connection
-const db = mysql.createConnection({
+// // // MySQL database connection
+// const db = mysql.createPool({
+//     host: process.env.DB_HOST,
+//     user: process.env.DB_USER,
+//     password: process.env.DB_PASSWORD,
+//     database: process.env.DB_DATABASE
+// }).promise();
+
+// const db = mysql.createPool({
+//     host: process.env.DB_HOST,
+//     user: process.env.DB_USER,
+//     password: process.env.DB_PASSWORD,
+//     database: process.env.DB_DATABASE,
+//     waitForConnections: true,
+//     connectionLimit: 10,
+//     queueLimit: 0
+// }).promise();
+
+
+// Create a pool using mysql2 with promise support
+const db = mysql.createPool({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_DATABASE
-});
+}).promise();
+
+// const db = mysql.createConnection({
+//     host: process.env.DB_HOST,
+//     user: process.env.DB_USER,
+//     password: process.env.DB_PASSWORD,
+//     database: process.env.DB_DATABASE
+// });
+
+
+
 
 
 // MinIO Client Setup
@@ -107,10 +136,10 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-db.connect((err) => {
-    if (err) { throw err; }
-    console.log('Connected to the MySQL Server');
-});
+// db.connect((err) => {
+//     if (err) { throw err; }
+//     console.log('Connected to the MySQL Server');
+// });
 
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -928,6 +957,95 @@ app.post('/register', [
 
 
 
+// app.post('/register', [
+//     body('username')
+//         .trim()
+//         .isLength({ min: 2, max: 25 }).withMessage('Username must be between 2 to 25 characters.')
+//         .matches(/^[A-Za-z0-9_]+$/).withMessage('Username must be alphanumeric with underscores.'),
+//     body('email')
+//         .trim()
+//         .isEmail().withMessage('Invalid email address.'),
+//     body('password')
+//         .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long.')
+// ], async (req, res) => {
+//     const errors = validationResult(req);
+//     if (!errors.isEmpty()) {
+//         const errorMessages = errors.array().map(error => ({ parameter: error.param, message: error.msg, value: error.value }));
+//         return res.render('register.ejs', { errors: errorMessages });
+//     }
+
+//     const { username, email, password } = req.body;
+//     const defaultProfilePic = "https://ecstasyessentials.shop/images/Pfp.jpeg";
+//     const plainPassword = PEPPER + password;
+
+//     try {
+//         const hashedPassword = await bcrypt.hash(plainPassword, saltRounds);
+//         let defaultRoleId = 2; // Adjust based on your roles setup
+//         let sqlquery = "INSERT INTO users (username, email, password, role_id, profile_picture) VALUES (?, ?, ?, ?, ?)";
+
+//         await db.query(sqlquery, [username, email, hashedPassword, defaultRoleId, defaultProfilePic]);
+//         res.redirect('/login');
+//     } catch (err) {
+//         console.error("Error registering user:", err);
+//         if (err.code === 'ER_DUP_ENTRY') {
+//             const errorMessage = err.sqlMessage.includes('users.username') ? 'Username already exists.' : 'Email already exists.';
+//             return res.render('register.ejs', { errors: [{ message: errorMessage }] });
+//         }
+//         return res.render('register.ejs', { errors: [{ message: 'An error occurred during registration. Please try again.' }] });
+//     }
+// });
+// app.post('/register', [
+//     body('username')
+//         .trim()
+//         .isLength({ min: 2, max: 25 }).withMessage('Username must be between 2 to 25 characters.')
+//         .matches(/^[A-Za-z0-9_]+$/).withMessage('Username must be alphanumeric with underscores.'),
+//     body('email')
+//         .trim()
+//         .isEmail().withMessage('Invalid email address.'),
+//     body('password')
+//         .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long.')
+// ], async (req, res) => {
+//     const errors = validationResult(req);
+//     if (!errors.isEmpty()) {
+//         const errorMessages = errors.array().map(error => ({ parameter: error.param, message: error.msg, value: error.value }));
+//         return res.render('register.ejs', { errors: errorMessages });
+//     }
+
+//     const { username, email, password } = req.body;
+//     const defaultProfilePic = "https://ecstasyessentials.shop/images/Pfp.jpeg";
+//     const plainPassword = PEPPER + password;
+
+//     try {
+//         const hashedPassword = await bcrypt.hash(plainPassword, saltRounds);
+//         let defaultRoleId = 2; // Adjust based on your roles setup
+//         let sqlquery = "INSERT INTO users (username, email, password, role_id, profile_picture) VALUES (?, ?, ?, ?, ?)";
+
+//         await db.query(sqlquery, [username, email, hashedPassword, defaultRoleId, defaultProfilePic]);
+//         res.redirect('/login');
+//     } catch (err) {
+//         console.error("Error registering user:", err);
+//         if (err.code === 'ER_DUP_ENTRY') {
+//             const errorMessage = err.sqlMessage.includes('users.username') ? 'Username already exists.' : 'Email already exists.';
+//             return res.render('register.ejs', { errors: [{ message: errorMessage }] });
+//         }
+//         return res.render('register.ejs', { errors: [{ message: 'An error occurred during registration. Please try again.' }] });
+//     }
+// });
+
+
+// const { username, email, password } = req.body;
+// const defaultProfilePic = "https://ecstasyessentials.shop/images/Pfp.jpeg";
+// const hashedPassword = await bcrypt.hash(PEPPER + password, saltRounds);
+
+// let defaultRoleId = 2; // Adjust based on your roles setup
+// let sqlquery = "INSERT INTO users (username, email, password, role_id, profile_picture) VALUES (?, ?, ?, ?, ?)";
+
+// try {
+//     await db.query(sqlquery, [username, email, hashedPassword, defaultRoleId, defaultProfilePic]);
+//     res.redirect('/login');
+// } catch (err) {
+//     console.error("Error registering user:", err);
+
 app.get('/login', (req, res) => {
     res.render('login.ejs');
 });
@@ -1074,28 +1192,27 @@ app.get('/logout', (req, res) => {
 
 
 app.get('/userProfile', async (req, res) => {
-    console.log('req.sessionID => Session ID:', req.sessionID);
-    console.log('req.session => Session Data userId:', req.session);
-    console.log('req.session.userId => Session Data userId:', req.session.userId);
     if (!req.session.userId) {
-        // Redirect to login page if not logged in
         return res.redirect('/login');
     }
 
     try {
+        // Fetch user profile information
         const userQuery = 'SELECT username, email, profile_picture, bio FROM users WHERE user_id = ?';
-        db.query(userQuery, [req.session.userId], (err, results) => {
-            if (err) {
-                console.error("Database error:", err);
-                return res.status(500).send('Error fetching user profile');
-            }
-            if (results.length === 0) {
-                return res.status(404).send('User not found');
-            }
+        const userResults = await db.promise().query(userQuery, [req.session.userId]);
 
-            const user = results[0];
-            res.render('userProfile', { user });
-        });
+        const user = userResults[0][0];
+        if (!user) {
+            return res.status(404).send('User not found');
+        }
+
+        // Fetch user's generated images
+        const imagesQuery = "SELECT * FROM userGallery WHERE user_id = ?";
+        const imagesResults = await db.promise().query(imagesQuery, [req.session.userId]);
+        const images = imagesResults[0];
+
+        // Render the user profile with images
+        res.render('userProfile', { user, images });
     } catch (err) {
         console.error("Error:", err);
         res.status(500).send('Error fetching user profile');
@@ -1103,10 +1220,52 @@ app.get('/userProfile', async (req, res) => {
 });
 
 
+// app.get('/userProfile', async (req, res) => {
+//     console.log('req.sessionID => Session ID:', req.sessionID);
+//     console.log('req.session => Session Data userId:', req.session);
+//     console.log('req.session.userId => Session Data userId:', req.session.userId);
+//     if (!req.session.userId) {
+//         // Redirect to login page if not logged in
+//         return res.redirect('/login');
+//     }
+
+//     try {
+//         const userQuery = 'SELECT username, email, profile_picture, bio FROM users WHERE user_id = ?';
+//         db.query(userQuery, [req.session.userId], (err, results) => {
+//             if (err) {
+//                 console.error("Database error:", err);
+//                 return res.status(500).send('Error fetching user profile');
+//             }
+//             if (results.length === 0) {
+//                 return res.status(404).send('User not found');
+//             }
+
+//             const user = results[0];
+//             res.render('userProfile', { user });
+//         });
+//     } catch (err) {
+//         console.error("Error:", err);
+//         res.status(500).send('Error fetching user profile');
+//     }
+// });
+
+
 app.post('/userProfile', (req, res) => {
     res.send('POST request to userProfile');
 });
 
+
+app.get('/userImages/:userId', (req, res) => {
+    const userId = req.params.userId;
+    const query = "SELECT * FROM userGallery WHERE user_id = ?";
+    db.query(query, [userId], (err, results) => {
+        if (err) {
+            console.error("Database error:", err);
+            return res.status(500).send('Error fetching images');
+        }
+        res.json(results);
+    });
+});
 
 
 
@@ -1408,6 +1567,17 @@ app.post('/dashboard', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
+
+
+
+app.get('/dashboard', (req, res) => {
+    if (!req.session.userId) {
+        return res.redirect('/login');
+    }
+    res.render('dashboard', { userId: req.session.userId });
+});
+// }
 
 app.get('/userImages/:userId', (req, res) => {
     const userId = req.params.userId;
@@ -3232,4 +3402,4 @@ app.listen(port, () => {
 
 //     // Handle the checkout.session.completed event
 //     if (event.type === 'checkout.session.completed') {
-//         const session = event.data.object;
+//         const session = event.data.object

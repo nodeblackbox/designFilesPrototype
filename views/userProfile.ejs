@@ -3,6 +3,22 @@
 <head>
     <title>User Profile</title>
     <!-- Add any additional CSS or head tags here -->
+    <style>
+    .image-gallery {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    .image-item {
+        border: 1px solid #ccc;
+        padding: 10px;
+        text-align: center;
+    }
+    .image-item img {
+        max-width: 100px;
+        height: auto;
+    }
+</style>
 </head>
 <body>
     <h1>User Profile</h1>
@@ -17,9 +33,26 @@
             <% } %>
             <p><%= user.bio || "No bio available" %></p>
         </div>
+
+        <!-- Image Gallery -->
+        <div>
+            <h2>Generated Images</h2>
+            <% if (images.length > 0) { %>
+                <div class="image-gallery">
+                    <% images.forEach(image => { %>
+                        <div class="image-item">
+                            <img src="<%= image.image_url %>" alt="Generated Image">
+                            <p>Prompt: <%= image.prompt %></p>
+                            <!-- Display other image details as needed -->
+                        </div>
+                    <% }); %>
+                </div>
+            <% } else { %>
+                <p>This user has not generated any images yet.</p>
+            <% } %>
+        </div>
     <% } else { %>
         <p>User information is not available.</p>
     <% } %>
-    <!-- Add more user details as needed -->
 </body>
 </html>
