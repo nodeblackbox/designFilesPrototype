@@ -1171,7 +1171,6 @@ app.get('/logout', (req, res) => {
 
 
 
-
 app.get('/addbook', function (req, res) {
     const sqlquery = "SELECT * FROM publishers";
     db.query(sqlquery, (err, publishers) => {
@@ -1215,52 +1214,32 @@ app.get('/dashboard', (req, res) => {
 
 
 
-app.post('/', async (req, res) => {
-    const { prompt, negative_prompt, steps, seed, width, height, cfg_scale } = req.body;
-    try {
-        const response = await axios.post('https://a0f8-147-12-195-79.ngrok-free.app/generateImage', {
-            prompt,
-            negative_prompt,
-            steps,
-            seed,
-            width,
-            height,
-            cfg_scale
-        });
+// app.post('/', async (req, res) => {
+//     const { prompt, negative_prompt, steps, seed, width, height, cfg_scale } = req.body;
+//     try {
+//         const response = await axios.post('https://a0f8-147-12-195-79.ngrok-free.app/generateImage', {
+//             prompt,
+//             negative_prompt,
+//             steps,
+//             seed,
+//             width,
+//             height,
+//             cfg_scale
+//         });
 
-        // Send the image data back to the client
-        const imageHex = response.data.imageHex;
-        res.json({ imageHex });
-    } catch (error) {
-        console.error(`Error: ${error.message}`);
-        res.status(500).json({ error: error.message });
-    }
-});
-
+//         // Send the image data back to the client
+//         const imageHex = response.data.imageHex;
+//         res.json({ imageHex });
+//     } catch (error) {
+//         console.error(`Error: ${error.message}`);
+//         res.status(500).json({ error: error.message });
+//     }
+// });
+// https://a291-147-12-195-79.ngrok-free.app
 
 // This is going to be the dashboard
-app.post('/dashboard', async (req, res) => {
-    const { prompt, negative_prompt, steps, seed, width, height, cfg_scale } = req.body;
-    try {
-        const response = await axios.post('https://a0f8-147-12-195-79.ngrok-free.app/generateImage', {
-            prompt,
-            negative_prompt,
-            steps,
-            seed,
-            width,
-            height,
-            cfg_scale
-        });
 
-        // Send the image data back to the client
-        const imageHex = response.data.imageHex;
-        res.json({ imageHex });
-    } catch (error) {
-        console.error(`Error: ${error.message}`);
-        res.status(500).json({ error: error.message });
-    }
-});
-
+// const bucketName = 'aidashboardbucket';
 // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -1297,7 +1276,7 @@ const storage = multer.diskStorage({
 
 
 // Endpoint to list all images in a bucket
-app.get('/images', (req, res) => {
+app.get('/gallery', (req, res) => {
     const bucketName = 'aidashboardbucket';
     console.log("imagesss-------------");
 
@@ -1326,7 +1305,7 @@ app.get('/images', (req, res) => {
 
 
 app.get('/images/:imageName', (req, res) => {
-    const bucketName = 'aidashboardbucket';
+
     const objectName = req.params.imageName;
 
     minioClient.getObject(bucketName, objectName, (err, stream) => {
@@ -1340,17 +1319,206 @@ app.get('/images/:imageName', (req, res) => {
 });
 
 
+const upload = multer({ dest: 'uploads/' });
 
 
 
+const { Readable } = require('stream'); // Import Readable from the 'stream' module
+
+app.post('/dashboard', async (req, res) => {
+    const { prompt, negative_prompt, steps, seed, width, height, cfg_scale } = req.body;
+
+    try {
+        const response = await axios.post('https://a291-147-12-195-79.ngrok-free.app/generateImage', {
+            prompt, negative_prompt, steps, seed, width, height, cfg_scale
+        });
+
+        // Extract image base64 data and convert to Buffer
+        const imageHex = response.data.imageHex;
+        const imageBuffer = Buffer.from(imageHex, 'base64');
+
+        // Create a Readable stream from the Buffer
+        const readableStream = new Readable();
+        readableStream.push(imageBuffer);
+        readableStream.push(null);
+
+        // Define file name
+        const fileName = `image_${Date.now()}.jpeg`;
+
+        // Upload the stream to MinIO
+        const bucketName = 'aidashboardbucket';
+        minioClient.putObject(bucketName, fileName, readableStream, imageBuffer.length, async (err, etag) => {
+            if (err) {
+                console.error(`Error uploading to MinIO: ${err}`);
+                return res.status(500).send(err.message);
+            }
+
+            // Image uploaded to MinIO, now send the same image data back to the frontend
+            res.json({ imageHex });
+        });
+
+    } catch (error) {
+        console.error(`Error: ${error.message}`);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
+// app.post('/upload', upload.single('image'), (req, res) => {
+//     const file = req.file;
+//     const bucketName = 'aidashboardbucket'; // replace with your bucket name
+//     console.log(JSON.stringify(file))
+//     console.log(JSON.stringify(file.filename))
+//     console.log(JSON.stringify(file.path))
+
+//     // Upload the file to MinIO
+//     minioClient.fPutObject(bucketName, file.filename, file.path, (err, etag) => {
+//         if (err) return res.status(500).send(err);
+//         res.send(`File uploaded successfully. ETag: ${etag}`);
+//     });
+// });
+
+// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
 
+// Express route to handle file uploads
+app.post('/upload', upload.single('image'), (req, res) => {
+
+    console.log("upload hit")
+    const file = req.file;
+
+    // Check if a file is provided in the request
+    if (!file) {
+        console.log("no file")
+        return res.status(400).send('No file uploaded.');
+    }
+
+    // Use fs to create a read stream and get file size
+    let fileStream, fileStat;
+    try {
+        fileStream = fs.createReadStream(file.path);
+        fileStat = fs.statSync(file.path);
+    } catch (error) {
+        console.error(`Error reading file from disk: ${error}`);
+        return res.status(500).send('Error reading file from disk.');
+    }
+
+    // Upload the file to Minio bucket
+    minioClient.putObject(bucketName, file.originalname, fileStream, fileStat.size, (err, etag) => {
+        if (err) {
+            console.error(`Error uploading to MinIO: ${err}`);
+            return res.status(500).send(err.message);
+        }
+        res.send(`File uploaded successfully. ETag: ${etag}`);
+
+        // Optionally delete the file from local storage after upload
+        fs.unlink(file.path, unlinkErr => {
+            if (unlinkErr) {
+                console.log(`Error deleting file: ${unlinkErr}`);
+                console.error(`Error deleting file: ${unlinkErr}`);
+            }
+        });
+    });
+});
 
 
 
+// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+// app.post('/upload', upload.single('image'), (req, res) => {
+//     const file = req.file;
+//     const bucketName = 'profilepictures'; // replace with your bucket name
+
+//     console.log(JSON.stringify(file));
+//     console.log(JSON.stringify(file.filename));
+//     console.log(JSON.stringify(file.path));
+
+//     // Upload the file to MinIO
+//     minioClient.fPutObject(bucketName, file.filename, file.path, (err, etag) => {
+//         if (err) return res.status(500).send(err);
+
+//         // Ensure ETag is a string
+//         const etagString = etag && typeof etag === 'object' ? JSON.stringify(etag) : etag;
+//         res.send(`File uploaded successfully. ETag: ${etagString}`);
+//     });
+// });
+
+console.log("bucket names -----------------")
+const stream2 = minioClient.listObjects('aidashboardbucket', '', true);
+stream2.on('data', function (obj) { console.log(obj); });
+stream2.on('error', function (err) { console.error(err); })
+
+// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
+
+// app.post('/dashboard', async (req, res) => {
+//     const { prompt, negative_prompt, steps, seed, width, height, cfg_scale } = req.body;
+
+//     try {
+//         const response = await axios.post('https://a291-147-12-195-79.ngrok-free.app/generateImage', {
+//             prompt,
+//             negative_prompt,
+//             steps,
+//             seed,
+//             width,
+//             height,
+//             cfg_scale
+//         });
+
+//         const imageHex = response.data.imageHex;
+//         const imageBuffer = Buffer.from(imageHex, 'hex');
+//         const objectName = `AI_Image_${Date.now()}.png`;
+
+//         const bufferStream = new stream.PassThrough();
+//         bufferStream.end(imageBuffer);
+
+//         minioClient.putObject(bucketName, objectName, bufferStream, imageBuffer.length, { 'Content-Type': 'image/png' }, (err, etag) => {
+//             if (err) {
+//                 console.error(`Error uploading to MinIO: ${err}`);
+//                 return res.status(500).send(err);
+//             }
+//             console.log(`File uploaded successfully. ETag: ${JSON.stringify(etag)}`);
+//             res.json({
+//                 success: true,
+//                 message: 'Image generated and uploaded successfully',
+//                 url: `http://127.0.0.1:9000/${bucketName}/${objectName}`,
+//                 etag: etag // If you need to send back the ETag value
+//             });
+//         });
+//     } catch (error) {
+//         console.error(`Error in image generation/upload: ${error.message}`);
+//         res.status(500).json({ error: error.message });
+//     }
+// });
+
+
+
+// app.get('/images', async (req, res) => {
+//     try {
+//         const stream = minioClient.listObjectsV2(bucketName, '', true);
+//         const images = [];
+
+//         for await (const obj of stream) {
+//             images.push({
+//                 name: obj.name,
+//                 url: `http://77.68.110.106:9000/${bucketName}/${obj.name}`
+//             });
+//         }
+
+//         res.render('images.ejs', { images });
+//     } catch (err) {
+//         console.error(`Error listing objects: ${err}`);
+//         res.status(500).render('error.ejs', { error: err });
+//     }
+// });
 
 
 
@@ -1596,6 +1764,80 @@ app.listen(port, () => {
 });
 
 
+
+
+// app.post('/dashboard', async (req, res) => {
+//     const { prompt, negative_prompt, steps, seed, width, height, cfg_scale } = req.body;
+//     try {
+//         const response = await axios.post('https://a291-147-12-195-79.ngrok-free.app/generateImage', {
+//             prompt,
+//             negative_prompt,
+//             steps,
+//             seed,
+//             width,
+//             height,
+//             cfg_scale
+//         });
+
+//         // Extract image base64 data from the API response
+//         const imageHex = response.data.imageHex;
+
+//         // Convert base64 string to a Buffer
+//         const imageBuffer = Buffer.from(imageHex, 'base64');
+
+//         // Define the file path and name for the image file
+//         const filePath = 'hello.jpeg';
+
+//         // Write the Buffer to a file
+//         fs.writeFileSync(filePath, imageBuffer);
+
+//         // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+//         // Upload the file to MinIO
+//         const bucketName = 'aidashboardbucket'; // replace with your bucket name
+
+//         // minioClient.fPutObject(bucketName, fileName, filePath, (err, etag) => {
+//         //     if (err) {
+//         //         console.error(`MinIO Upload Error: ${err}`);
+//         //         return res.status(500).send(err);
+//         //     }
+//         //     console.log(`File uploaded successfully. ETag: ${etag}`);
+//         // });
+
+
+//         // minioClient.fPutObject(bucketName, file.filename, file.path, (err, etag) => {
+//         //     if (err) return res.status(500).send(err);
+//         //     res.send(`File uploaded successfully. ETag: ${etag}`);
+//         // });
+//         // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+//         res.json({ imageHex });
+//     } catch (error) {
+//         console.error(`Error: ${error.message}`);
+//         res.status(500).json({ error: error.message });
+//     }
+// });
+
+// app.post('/dashboard', async (req, res) => {
+//     const { prompt, negative_prompt, steps, seed, width, height, cfg_scale } = req.body;
+//     try {
+//         const response = await axios.post('https://a291-147-12-195-79.ngrok-free.app/generateImage', {
+//             prompt,
+//             negative_prompt,
+//             steps,
+//             seed,
+//             width,
+//             height,
+//             cfg_scale
+//         });
+
+//         // Send the image data back to the client
+//         const imageHex = response.data.imageHex;
+//         res.json({ imageHex });
+//     } catch (error) {
+//         console.error(`Error: ${error.message}`);
+//         res.status(500).json({ error: error.message });
+//     }
+// });
 
 // s
 // metadata: { userId: req.session.userId },
