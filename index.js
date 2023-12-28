@@ -2,7 +2,7 @@
 const express = require('express');
 const ejs = require('ejs');
 require('dotenv').config();
-const mysql = require('mysql2');
+const mysql = require('mysql');
 const multer = require('multer');
 const crypto = require('crypto');
 // const bodyParser = require('body-parser')
@@ -149,131 +149,164 @@ const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 console.log("endpointSecret", endpointSecret)
 
 
-app.post('/webhook', express.raw({ type: 'application/json' }), async (request, response) => {
-    const sig = request.headers['stripe-signature'];
+// app.post('/webhook', express.raw({ type: 'application/json' }), async (request, response) => {
+//     const sig = request.headers['stripe-signature'];
 
-    let event;
+//     let event;
 
-    try {
-        event = stripe.webhooks.constructEvent(request.body, sig, endpointSecret);
-    } catch (err) {
-        console.error('Webhook Error:', err.message);
-        response.status(400).send(`Webhook Error: ${err.message}`);
-        return;
-    }
+//     try {
+//         event = stripe.webhooks.constructEvent(request.body, sig, endpointSecret);
+//     } catch (err) {
+//         console.error('Webhook Error:', err.message);
+//         response.status(400).send(`Webhook Error: ${err.message}`);
+//         return;
+//     }
 
-    console.log("Webhook received:", request.body.toString());
+//     console.log("Webhook received:", request.body.toString());
 
-    if (event.type === 'checkout.session.completed') {
-        const checkoutSession = event.data.object;
+//     if (event.type === 'checkout.session.completed') {
+//         const checkoutSession = event.data.object;
 
-        const userId = checkoutSession.metadata.userId;
-        const stripeSubscriptionId = checkoutSession.subscription;
+//         const userId = checkoutSession.metadata.userId;
+//         const stripeSubscriptionId = checkoutSession.subscription;
 
-        console.log("Checkout session completed for User ID:", userId);
-        console.log("Stripe Subscription ID:", stripeSubscriptionId);
+//         console.log("Checkout session completed for User ID:", userId);
+//         console.log("Stripe Subscription ID:", stripeSubscriptionId);
 
+//         const updateQuery = `
+//             UPDATE subscriptionHistory 
+//             SET status = 'active', stripe_subscription_id = ?
+//             WHERE user_id = ? AND status = 'pending'
+//         `;
+
+//         try {
+//             await executeDatabaseQuery(updateQuery, [stripeSubscriptionId, userId]);
+//             console.log(`Subscriptions updated to active for user: ${userId}`);
+//             response.status(200).send('Webhook processed successfully');
+//         } catch (err) {
+//             console.error('Error updating subscription status:', err);
+//             response.status(500).send('Error processing webhook');
+//         }
+//     } else {
+//         console.log(`Unhandled event type ${event.type}`);
+//         response.status(200).send('Received unhandled event type');
+//     }
+// });
+
+
+
+
+app.post('/webhook', express.raw({ type: 'application/json' }),
+    (request, response) => {
+        const sig = request.headers['stripe-signature'];
+
+
+
+
+        // Parse the JSON from the request body
+        const requestBody = JSON.parse(request.body.toString());
+
+        // Extract the userId from metadata before checking the event
+        const userId = requestBody.data.object.metadata.userId;
+        console.log("User ID:", userId);
+
+
+
+        let idarr = userId.split(",");
+        console.log("userID", idarr[0]);
+        console.log("ProductID", idarr[1]);
+
+        let ProcessedUserID = idarr[0];
+        let ProcessedProductID = idarr[1];
         const updateQuery = `
             UPDATE subscriptionHistory 
             SET status = 'active', stripe_subscription_id = ?
             WHERE user_id = ? AND status = 'pending'
         `;
 
-        try {
-            await executeDatabaseQuery(updateQuery, [stripeSubscriptionId, userId]);
-            console.log(`Subscriptions updated to active for user: ${userId}`);
-            response.status(200).send('Webhook processed successfully');
-        } catch (err) {
-            console.error('Error updating subscription status:', err);
-            response.status(500).send('Error processing webhook');
+        db.query(updateQuery, [ProcessedProductID, ProcessedUserID], (err, results) => {
+            if (err) {
+                console.error("Database error:", err);
+                return res.status(500).send('Error 9000');
+            }
+            // if (results.length === 0) {
+            //     return res.status(404).send('User not found');
+            // }
+        });
+
+
+        console.log("request from payment", request.body.toString());
+        // Extract the userId from metadata before checking the event
+
+        // const userId = request.body.data.object.metadata.userId;
+        // console.log("User ID:", userId);
+
+
+
+        let event;
+
+
+        test = request.body.toString()
+
+        // Check if the event type is 'checkout.session.completed'
+        if (event.type === 'checkout.session.completed') {
+        // const checkoutSession = event.data.object;
+
+            // Extract the userId
+            const checkoutSession = event.data.object;
+            const userId = checkoutSession.metadata.userId;
+            console.log("User ID:", userId);
+
+
+
+
+            console.log("Checkout session completed for User ID:", userId);
+            console.log("Stripe Subscription ID:", stripeSubscriptionId);
+
+
+
+            // Handle the checkout session completed event
+            // Here you can add code to update the user's status in your database
+            // using the extracted userId
         }
-    } else {
-        console.log(`Unhandled event type ${event.type}`);
-        response.status(200).send('Received unhandled event type');
-    }
-});
 
 
 
+        try {
+            // JSON to access the Stripe event data
+            const eventJson = JSON.stringify(request.body);
 
-// app.post('/webhook', express.raw({ type: 'application/json' }),
-//     (request, response) => {
-//         const sig = request.headers['stripe-signature'];
+            event = stripe.webhooks.constructEvent(eventJson, sig, endpointSecret);
 
-
-
-
-//         // Parse the JSON from the request body
-//         const requestBody = JSON.parse(request.body.toString());
-
-//         // Extract the userId from metadata before checking the event
-//         const userId = requestBody.data.object.metadata.userId;
-//         console.log("User ID:", userId);
-
-//         console.log("request from payment", request.body.toString())
-//         // Extract the userId from metadata before checking the event
-
-//         // const userId = request.body.data.object.metadata.userId;
-//         // console.log("User ID:", userId);
+            console.log("event", event)
+            console.log("event.type", event.type)
 
 
+        } catch (err) {
+            response.status(400).send(`Webhook Error: ${err.message}`);
+            return;
+        }
 
-//         let event;
+        // Handle the event
+        switch (event.type) {
+            case 'checkout.session.completed':
+                const checkoutSessionCompleted = event.data.object;
+                console.log(checkoutSessionCompleted)
 
+                // Then define and call a function to handle the event checkout.session.completed
+                break;
+            // ... handle other event types
+            default:
+                console.log(`Unhandled event type ${event.type}`);
+        }
 
-//         test = request.body.toString()
+        console.log('finshed')
 
-//         // Check if the event type is 'checkout.session.completed'
-//         if (event.type === 'checkout.session.completed') {
-//             // const checkoutSession = event.data.object;
-
-//             // Extract the userId
-//             const checkoutSession = event.data.object;
-//             const userId = checkoutSession.metadata.userId;
-//             console.log("User ID:", userId);
-
-//             // Handle the checkout session completed event
-//             // Here you can add code to update the user's status in your database
-//             // using the extracted userId
-//         }
-
-
-
-//         try {
-//             // JSON to access the Stripe event data
-//             const eventJson = JSON.stringify(request.body);
-
-//             event = stripe.webhooks.constructEvent(eventJson, sig, endpointSecret);
-
-//             console.log("event", event)
-//             console.log("event.type", event.type)
-
-
-//         } catch (err) {
-//             response.status(400).send(`Webhook Error: ${err.message}`);
-//             return;
-//         }
-
-//         // Handle the event
-//         switch (event.type) {
-//             case 'checkout.session.completed':
-//                 const checkoutSessionCompleted = event.data.object;
-//                 console.log(checkoutSessionCompleted)
-
-//                 // Then define and call a function to handle the event checkout.session.completed
-//                 break;
-//             // ... handle other event types
-//             default:
-//                 console.log(`Unhandled event type ${event.type}`);
-//         }
-
-//         console.log('finshed')
-
-//         // Return a 200 response to acknowledge receipt of the event
-//         // response.status(200).send(`Webhook Error: ${err.message}`);
-//         response.status(200)
-//         response.send();
-//     });
+        // Return a 200 response to acknowledge receipt of the event
+        // response.status(200).send(`Webhook Error: ${err.message}`);
+        response.status(200)
+        response.send();
+    });
 
 
 
@@ -648,16 +681,16 @@ app.post('/checkout/:productId', async (req, res) => {
             VALUES (?, ?, 'pending')
         `;
         await executeDatabaseQuery(insertQuery, [userId, subscriptionId]);
-
+        concat = userId.toString() + "," + product.id.toString(), ",", product.priceID.toString();
         // Create Stripe checkout session
         const session = await stripe.checkout.sessions.create({
             mode: 'subscription',
             line_items: [{
                 price: product.priceID,
-                quantity: 1,
+                quantity: 1
             }],
             metadata: {
-                userId: userId.toString(),
+                userId: concat.toString(),
             },
             success_url: `${req.headers.origin}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${req.headers.origin}/payment-cancelled`,
@@ -941,9 +974,11 @@ app.post('/register', [
         }
 
         let defaultRoleId = 2; // Adjust based on your roles setup
-        let sqlquery = "INSERT INTO users (username, email, password, role_id) VALUES (?,?,?,?)";
+        let sqlquery = "INSERT INTO users (username, email, password, role_id, profile_picture) VALUES (?,?,?,?,?)";
 
-        db.query(sqlquery, [username, email, hashedPassword, defaultRoleId], (err) => {
+        let DefaultProfilePicture = "ecstasyessentials.shop/images/Pfp.jpeg";
+
+        db.query(sqlquery, [username, email, hashedPassword, defaultRoleId, DefaultProfilePicture], (err) => {
             if (err) {
                 if (err.code === 'ER_DUP_ENTRY') {
                     const errorMessage = err.sqlMessage.includes('users.username') ? 'Username already exists.' : 'Email already exists.';
@@ -1233,18 +1268,35 @@ app.get('/userProfile', async (req, res) => {
     }
 
     try {
-        const userQuery = 'SELECT username, email, profile_picture, bio FROM users WHERE user_id = ?';
+        const userQuery = `
+            SELECT username, email, profile_picture, bio FROM users WHERE user_id = ?`;
         db.query(userQuery, [req.session.userId], (err, results) => {
             if (err) {
                 console.error("Database error:", err);
                 return res.status(500).send('Error fetching user profile');
             }
+
             if (results.length === 0) {
                 return res.status(404).send('User not found');
             }
 
             const user = results[0];
-            res.render('userProfile', { user });
+            console.log("user", user)
+            // create a new array of image objects
+            const userImgQuery = `SELECT * FROM userGallery WHERE user_id = ?`;
+
+            db.query(userImgQuery, [req.session.userId], (err, results) => {
+                if (err) {
+                    console.error("Database error:", err);
+                    return res.status(500).send('Error fetching user images');
+                }
+                // if (results.length === 0) {
+                //     return res.status(404).send('User not found');
+                // }
+                const images = results;
+                console.log("images", images)
+                res.render('userProfile', { user, images });
+            });
         });
     } catch (err) {
         console.error("Error:", err);
@@ -1261,6 +1313,7 @@ app.post('/userProfile', (req, res) => {
 app.get('/userImages/:userId', (req, res) => {
     const userId = req.params.userId;
     const query = "SELECT * FROM userGallery WHERE user_id = ?";
+
     db.query(query, [userId], (err, results) => {
         if (err) {
             console.error("Database error:", err);
