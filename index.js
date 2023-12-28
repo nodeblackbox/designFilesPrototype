@@ -862,6 +862,7 @@ app.get('/payment-cancelled', (req, res) => {
 // });
 
 
+
 async function findRoleId(roleName) {
     return new Promise((resolve, reject) => {
         db.query('SELECT role_id FROM userRoles WHERE role_name = ?', [roleName], (err, results) => {
@@ -879,7 +880,6 @@ async function findRoleId(roleName) {
 app.get('/register', (req, res) => {
     res.render('register.ejs');
 });
-
 
 
 
@@ -925,6 +925,7 @@ app.post('/register', [
         });
     });
 });
+
 
 
 app.get('/login', (req, res) => {
@@ -1002,6 +1003,9 @@ app.get('/login', (req, res) => {
 //     });
 // });
 
+
+
+
 app.post('/login', [
     body('username')
         .trim()
@@ -1054,7 +1058,6 @@ app.post('/login', [
         });
     });
 });
-
 
 
 
@@ -1206,13 +1209,6 @@ app.get('/example', (req, res) => {
 });
 
 
-app.get('/dashboard', (req, res) => {
-    // res.render('dashboard.ejs');
-    res.render('dashboard', { user: req.session.user });
-});
-
-
-
 
 // app.post('/', async (req, res) => {
 //     const { prompt, negative_prompt, steps, seed, width, height, cfg_scale } = req.body;
@@ -1324,10 +1320,36 @@ const upload = multer({ dest: 'uploads/' });
 
 
 const { Readable } = require('stream'); // Import Readable from the 'stream' module
+// if (!req.session.userId) {
+//     return res.status(403).send('User not authenticated');
+
+
+// app.get('/dashboard', (req, res) => {
+//     // res.render('dashboard.ejs');
+//     res.render('dashboard', { user: req.session.user });
+// });
+
+app.get('/dashboard', (req, res) => {
+    if (!req.session.userId) {
+        return res.redirect('/login');
+    }
+    res.render('dashboard', { userId: req.session.userId });
+});
+
+
+
+
 
 app.post('/dashboard', async (req, res) => {
-    const { prompt, negative_prompt, steps, seed, width, height, cfg_scale } = req.body;
 
+    const { prompt, negative_prompt, steps, seed, width, height, cfg_scale, userId } = req.body;
+    console.log("Received userId:", prompt);
+    console.log("Received userId:", negative_prompt);
+    console.log("Received userId:", steps);
+    console.log("Received userId:", seed);
+    console.log("Received userId:", width);
+    console.log("Received userId:", cfg_scale);
+    console.log("Received userId:", userId);
     try {
         const response = await axios.post('https://a291-147-12-195-79.ngrok-free.app/generateImage', {
             prompt, negative_prompt, steps, seed, width, height, cfg_scale
@@ -1347,22 +1369,57 @@ app.post('/dashboard', async (req, res) => {
 
         // Upload the stream to MinIO
         const bucketName = 'aidashboardbucket';
+        // minioClient.putObject(bucketName, fileName, readableStream, imageBuffer.length, async (err, etag) => {
+        //     if (err) {
+        //         console.error(`Error uploading to MinIO: ${err}`);
+        //         return res.status(500).send(err.message);
+        //     }
+
+        //     // Image uploaded to MinIO, now send the same image data back to the frontend
+        //     res.json({ imageHex });
+        // });
         minioClient.putObject(bucketName, fileName, readableStream, imageBuffer.length, async (err, etag) => {
             if (err) {
                 console.error(`Error uploading to MinIO: ${err}`);
                 return res.status(500).send(err.message);
             }
 
-            // Image uploaded to MinIO, now send the same image data back to the frontend
-            res.json({ imageHex });
-        });
+            // Construct the URL for the image
+            const imageUrl = `https://ecstasyessentials.shop/images/${fileName}`;
+            // const imageUrl = `https://${bucketName}/${fileName}`;
 
+            // https://ecstasyessentials.shop/images/imageMinio5.png
+
+            // Store the image URL and related data in the userGallery table
+            const insertQuery = "INSERT INTO userGallery (user_id, prompt, negative_prompt, steps, seed, width, height, cfg_scale, image_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+            db.query(insertQuery, [userId, prompt, negative_prompt, steps, seed, width, height, cfg_scale, imageUrl], (err, results) => {
+                if (err) {
+                    console.error(`Error saving image data to database: ${err}`);
+                    return res.status(500).send('Error saving image data');
+                }
+                console.log("Image data saved to database");
+
+                // Image uploaded to MinIO and data stored in DB, now send the image data back to the frontend
+                res.json({ imageHex });
+            });
+        });
     } catch (error) {
         console.error(`Error: ${error.message}`);
         res.status(500).json({ error: error.message });
     }
 });
 
+app.get('/userImages/:userId', (req, res) => {
+    const userId = req.params.userId;
+    const query = "SELECT * FROM userGallery WHERE user_id = ?";
+    db.query(query, [userId], (err, results) => {
+        if (err) {
+            console.error("Database error:", err);
+            return res.status(500).send('Error fetching images');
+        }
+        res.json(results);
+    });
+});
 
 // app.post('/upload', upload.single('image'), (req, res) => {
 //     const file = req.file;
@@ -1381,8 +1438,6 @@ app.post('/dashboard', async (req, res) => {
 // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-
 
 // Express route to handle file uploads
 app.post('/upload', upload.single('image'), (req, res) => {
@@ -1762,8 +1817,6 @@ app.post('/loginProto', (req, res) => {
 app.listen(port, () => {
     console.log(`Express.js boilerplate app listening at http://localhost:${port}`);
 });
-
-
 
 
 // app.post('/dashboard', async (req, res) => {
