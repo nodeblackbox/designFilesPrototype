@@ -57,19 +57,22 @@ const bucketName = process.env.MINIO_BUCKET_NAME;
 
 
 // Create a pool using mysql2 with promise support
-const db = mysql.createPool({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_DATABASE
-}).promise();
-
-// const db = mysql.createConnection({
+// const db = mysql.createPool({
 //     host: process.env.DB_HOST,
 //     user: process.env.DB_USER,
 //     password: process.env.DB_PASSWORD,
 //     database: process.env.DB_DATABASE
-// });
+// }).promise();
+
+
+
+
+const db = mysql.createConnection({
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_DATABASE
+});
 
 
 
@@ -136,15 +139,14 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// db.connect((err) => {
-//     if (err) { throw err; }
-//     console.log('Connected to the MySQL Server');
-// });
+db.connect((err) => {
+    if (err) { throw err; }
+    console.log('Connected to the MySQL Server');
+});
 
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
 console.log("endpointSecret", endpointSecret)
-
 
 
 app.post('/webhook', express.raw({ type: 'application/json' }), async (request, response) => {
@@ -1191,63 +1193,64 @@ app.get('/logout', (req, res) => {
 
 
 
-app.get('/userProfile', async (req, res) => {
-    if (!req.session.userId) {
-        return res.redirect('/login');
-    }
-
-    try {
-        // Fetch user profile information
-        const userQuery = 'SELECT username, email, profile_picture, bio FROM users WHERE user_id = ?';
-        const userResults = await db.promise().query(userQuery, [req.session.userId]);
-
-        const user = userResults[0][0];
-        if (!user) {
-            return res.status(404).send('User not found');
-        }
-
-        // Fetch user's generated images
-        const imagesQuery = "SELECT * FROM userGallery WHERE user_id = ?";
-        const imagesResults = await db.promise().query(imagesQuery, [req.session.userId]);
-        const images = imagesResults[0];
-
-        // Render the user profile with images
-        res.render('userProfile', { user, images });
-    } catch (err) {
-        console.error("Error:", err);
-        res.status(500).send('Error fetching user profile');
-    }
-});
-
-
 // app.get('/userProfile', async (req, res) => {
-//     console.log('req.sessionID => Session ID:', req.sessionID);
-//     console.log('req.session => Session Data userId:', req.session);
-//     console.log('req.session.userId => Session Data userId:', req.session.userId);
 //     if (!req.session.userId) {
-//         // Redirect to login page if not logged in
 //         return res.redirect('/login');
 //     }
 
 //     try {
+//         // Fetch user profile information
 //         const userQuery = 'SELECT username, email, profile_picture, bio FROM users WHERE user_id = ?';
-//         db.query(userQuery, [req.session.userId], (err, results) => {
-//             if (err) {
-//                 console.error("Database error:", err);
-//                 return res.status(500).send('Error fetching user profile');
-//             }
-//             if (results.length === 0) {
-//                 return res.status(404).send('User not found');
-//             }
+//         const userResults = await db.promise().query(userQuery, [req.session.userId]);
 
-//             const user = results[0];
-//             res.render('userProfile', { user });
-//         });
+//         const user = userResults[0][0];
+//         if (!user) {
+//             return res.status(404).send('User not found');
+//         }
+
+//         // Fetch user's generated images
+//         const imagesQuery = "SELECT * FROM userGallery WHERE user_id = ?";
+//         const imagesResults = await db.promise().query(imagesQuery, [req.session.userId]);
+//         const images = imagesResults[0];
+
+//         // Render the user profile with images
+//         res.render('userProfile', { user, images });
 //     } catch (err) {
 //         console.error("Error:", err);
 //         res.status(500).send('Error fetching user profile');
 //     }
 // });
+
+
+
+app.get('/userProfile', async (req, res) => {
+    console.log('req.sessionID => Session ID:', req.sessionID);
+    console.log('req.session => Session Data userId:', req.session);
+    console.log('req.session.userId => Session Data userId:', req.session.userId);
+    if (!req.session.userId) {
+        // Redirect to login page if not logged in
+        return res.redirect('/login');
+    }
+
+    try {
+        const userQuery = 'SELECT username, email, profile_picture, bio FROM users WHERE user_id = ?';
+        db.query(userQuery, [req.session.userId], (err, results) => {
+            if (err) {
+                console.error("Database error:", err);
+                return res.status(500).send('Error fetching user profile');
+            }
+            if (results.length === 0) {
+                return res.status(404).send('User not found');
+            }
+
+            const user = results[0];
+            res.render('userProfile', { user });
+        });
+    } catch (err) {
+        console.error("Error:", err);
+        res.status(500).send('Error fetching user profile');
+    }
+});
 
 
 app.post('/userProfile', (req, res) => {
