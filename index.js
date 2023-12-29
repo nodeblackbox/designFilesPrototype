@@ -535,6 +535,41 @@ app.get('/api/search/advanced', (req, res) => {
     });
 });
 
+app.post('/api/delete-account', (req, res) => {
+    const userId = req.body.userId;
+
+    // Check if userId is provided
+    if (!userId) {
+        return res.status(400).send({ message: 'User ID is required' });
+    }
+
+    // First, retrieve the current username
+    db.query('SELECT username FROM users WHERE user_id = ?', [userId], (err, results) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).send({ message: 'Internal server error' });
+        }
+        if (results.length === 0) {
+            return res.status(404).send({ message: 'User not found' });
+        }
+
+        // Append "deleted_user" to the current username
+        const newUsername = results[0].username + '_deleted_user';
+
+        // Update the username in the database
+        const updateQuery = 'UPDATE users SET username = ? WHERE user_id = ?';
+        db.query(updateQuery, [newUsername, userId], (updateErr, updateResult) => {
+            if (updateErr) {
+                console.error(updateErr);
+                return res.status(500).send({ message: 'Error updating username' });
+            }
+            if (updateResult.affectedRows === 0) {
+                return res.status(404).send({ message: 'User not found' });
+            }
+            res.send({ message: 'Account successfully updated' });
+        });
+    });
+});
 
 async function findRoleId(roleName) {
     return new Promise((resolve, reject) => {
@@ -600,8 +635,6 @@ app.post('/register', [
         });
     });
 });
-
-
 
 app.get('/login', (req, res) => {
     res.render('login.ejs');

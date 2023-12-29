@@ -1,41 +1,219 @@
 <!DOCTYPE html>
 <html>
-<head>
+  <head>
     <title>User Profile</title>
-    <!-- Add any additional CSS or head tags here -->
-</head>
-<body>
-    <h1>User Profile</h1>
-    <% if (user && images) { %> 
-        <div>
-            <h2><%= user.username %></h2>
-            <p>Email: <%= user.email %></p>
-            <% if (user.profile_picture) { %>
-                <img src="<%= user.profile_picture %>" alt="Profile Picture">
-            <% } else { %>
-                <p>No profile picture available</p>
-            <% } %>
-            <p><%= user.bio || "No bio available" %></p>
-            <%if(images.length > 0){%>
-                <p>Number of posts: <%= images[0].image_url %></p>
-                 <% for(var i = 0; i < images.length; i++){ %>
-                <img src="<%= images[i].image_url %>" alt="img">
-                <% } %> 
-            <%}else{%>
-                <p>Number of posts: 0</p>
-            <%}%>
-            
-            
-           
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      body {
+        font-family: "Roboto", sans-serif;
+        background-color: #1e2964;
+        color: white;
+        display: flex;
+        justify-content: center;
+        padding: 20px;
+      }
+      .glass-effect {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11),
+          0 1px 3px rgba(0, 0, 0, 0.08);
+      }
 
-            <a href="/logout">logout</a>
-            
-        </div>
+      .nav-links a {
+        transition: background-color 0.3s ease, transform 0.3s ease;
+      }
+      .nav-links a:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+        transform: translateY(-2px);
+      }
+      .rounded-button {
+        border-radius: 50px; /* Capsule shape */
+        padding: 10px 25px;
+      }
+      .profile-container {
+        max-width: 800px;
+        width: 100%;
+      }
+      .profile-header {
+        text-align: center;
+        margin-bottom: 30px;
+      }
+      .user-info {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        padding: 20px;
+        margin-bottom: 30px;
+        text-align: center;
+      }
+      .user-info img {
+        max-width: 100px;
+        border-radius: 50%;
+        margin-top: 15px;
+      }
+      .gallery {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 10px;
+      }
+      .gallery img {
+        width: 100%;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11);
+      }
+      .logout-link {
+        display: block;
+        text-align: center;
+        margin-top: 20px;
+        color: #fff;
+        text-decoration: none;
+        font-weight: bold;
+      }
+      .logout-link:hover {
+        text-decoration: underline;
+      }
 
+      .main-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-height: 100vh;
+        background-color: #1e2964;
+        font-family: "Roboto", sans-serif;
+        color: white;
+        padding: 20px;
+      }
+
+      nav {
+        width: 100%;
+        background: linear-gradient(
+          90deg,
+          rgba(33, 150, 243, 1) 0%,
+          rgba(3, 169, 244, 1) 100%
+        );
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+        .account-settings {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .delete-btn {
+            background-color: #ff0000;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .delete-btn:hover {
+            background-color: #cc0000;
+        }
+    </style>
+  </head>
+  <body>
+    <div class="main-container">
+      <nav class="p-4 text-white flex justify-between items-center">
         
-    <% } else { %>
+        <!-- Navigation bar content... -->
+    
+          <div class="logo">
+            <a href="/" class="text-xl font-bold">
+              <span class="text-white">ForgeAI</span>
+            </a>
+          </div>
+          <div class="nav-links flex gap-4">
+            <a
+              href="/gallery"
+              class="hover:bg-blue-800 px-3 py-2 rounded transition-colors duration-300"
+              >Gallery</a
+            >
+            <a
+              href="/dashboard"
+              class="hover:bg-blue-800 px-3 py-2 rounded transition-colors duration-300"
+              >Dashboard</a
+            >
+            <a
+              href="/plans"
+              class="hover:bg-blue-800 px-3 py-2 rounded transition-colors duration-300"
+              >Plans</a
+            >
+            <a
+              href="/about"
+              class="hover:bg-blue-800 px-3 py-2 rounded transition-colors duration-300"
+              >About Us</a
+            >
+            <a
+              href="/login"
+              class="hover:bg-blue-800 px-3 py-2 rounded transition-colors duration-300"
+              >Login</a
+            >
+            <a
+              href="/register"
+              class="bg-gray-800 hover:bg-gray-900 px-3 py-2 rounded transition-colors duration-300"
+              >Get Started</a
+            >
+          </div>
+        
+      </nav>
+
+      <div class="profile-container">
+        <div class="profile-header">
+          <h1>User Profile</h1>
+        </div>
+      
+        <% if (user && images) { %>
+        <div class="user-info">
+              <div class="account-settings">
+                <h2>Account Settings</h2>
+                <button id="deleteAccountBtn" class="delete-btn">Delete Account</button>
+            </div>
+          <h2><%= user.username %></h2>
+          <p>Email: <%= user.email %></p>
+          <% if (user.profile_picture) { %>
+          <img src="<%= user.profile_picture %>" alt="Profile Picture" />
+          <% } else { %>
+          <p>No profile picture available</p>
+          <% } %>
+          <p><%= user.bio || "No bio available" %></p>
+          <p>Number of posts: <%= images.length %></p>
+        </div>
+        <div class="gallery">
+          <% for(var i = 0; i < images.length; i++){ %>
+          <img src="<%= images[i].image_url %>" alt="User image" />
+          <% } %>
+        </div>
+        <a href="/logout" class="logout-link">Logout</a>
+        <% } else { %>
         <p>User information is not available.</p>
-    <% } %>
-    <!-- Add more user details as needed -->
-</body>
+        <% } %>
+      </div>
+    </div>
+    <script>
+        document.getElementById('deleteAccountBtn').addEventListener('click', function() {
+            const userConfirmation = confirm('Are you sure you want to delete your account? This action cannot be undone.');
+            if (userConfirmation) {
+                // Send POST request to server
+                fetch('/delete-account', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ delete: true })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.href = '/'; // Redirect to home page or login page
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+            }
+        });
+    </script>
+  </body>
 </html>
