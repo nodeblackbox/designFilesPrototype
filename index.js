@@ -194,7 +194,7 @@ console.log("endpointSecret", endpointSecret)
 // });
 
 
-
+// TODO: Subscription authentication for the dashboard.
 
 app.post('/webhook', express.raw({ type: 'application/json' }),
     (request, response) => {
