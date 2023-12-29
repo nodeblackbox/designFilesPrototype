@@ -1020,6 +1020,217 @@ app.post('/dashboard', async (req, res) => {
 });
 
 
+
+
+
+
+
+// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+// app.use(express.urlencoded({ extended: true }));
+
+app.get('/DevelopersAPI', (req, res) => {
+    res.render('DevelopersAPI');
+});
+
+// For now hardcode this will make a system for this Later on for now I've made so many different apis
+// I don't think the service  that I will provide is kind of ready for a developer interacting  with my tools because 
+// I'd like to provide the best serviceI'm gonna do a little bit more testing with users
+
+
+const secretKey = process.env.SecretCryptoKey
+// testr
+https://editor.p5js.org/nodeblackbox/sketches/2PQdVPtga
+// Current Ngrok URL and AI Server connection status
+var currentNgrokUrl = null;
+let isAiServerConnected = false;
+
+function decrypt(text, secretKey) {
+    const textParts = text.split(':');
+    const iv = Buffer.from(textParts.shift(), 'hex');
+    const encryptedText = Buffer.from(textParts.shift(), 'hex');
+    const tag = Buffer.from(textParts.shift(), 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(secretKey, 'hex'), iv);
+    decipher.setAuthTag(tag);
+
+    let decrypted = decipher.update(encryptedText);
+    decrypted = Buffer.concat([decrypted, decipher.final()]);
+    return decrypted.toString();
+}
+
+
+
+app.get('/prototype', (req, res) => {
+    res.render('prototype.ejs');
+});
+
+
+// Express route to receive and decrypt ngrok URL
+app.post('/receive-ngrok-url', (req, res) => {
+    try {
+        const encryptedNgrokUrl = req.body.ngrokUrl;
+        console.log('Receiving ngrok url', encryptedNgrokUrl);
+
+        currentNgrokUrl = decrypt(encryptedNgrokUrl, secretKey);
+        console.log('Decrypted Ngrok URL:', currentNgrokUrl);
+
+        // Further processing with decrypted URL...
+        res.status(200).send({ message: 'Ngrok URL received and decrypted' });
+    } catch (error) {
+        console.error('Error in decrypting or processing Ngrok URL:', error);
+        res.status(500).send({ error: 'Internal Server Error' });
+    }
+});
+
+// Endpoint for checking server connection
+app.get('/check-connection', (req, res) => {
+    console.log('Connection check endpoint hit');
+
+    // Logic to determine if the server is ready for a new AI server connection
+    const isServerReady = true; // Replace with actual logic to determine readiness
+
+    res.json({ ready: isServerReady, aiServerConnected: isAiServerConnected });
+});
+
+// Endpoint for receiving POST data
+app.post('/check-post', (req, res) => {
+    console.log('Data received:', req.body);
+    res.status(200).send({ message: 'Data received successfully' });
+});
+
+function verifyApiKey(req, res, next) {
+    const apiKey = req.header('Authorization');
+    if (!apiKey) {
+        return res.status(401).send('API Key is required');
+    }
+
+    const tokenQuery = 'SELECT * FROM apiTokens WHERE token = ?';
+    db.query(tokenQuery, [apiKey], (err, results) => {
+        if (err || results.length === 0) {
+            return res.status(403).send('Invalid API Key');
+        }
+        next(); // Proceed to the next middleware/function
+    });
+}
+
+// Generate API Token endpoint
+app.post('/generateApiToken', (req, res) => {
+    const { userId, password, username } = req.body;
+
+    // Verify user credentials (implement proper authentication method)
+    const userQuery = 'SELECT * FROM users WHERE username = ? AND password = ?';
+    db.query(userQuery, [username, password], (err, userResults) => {
+        if (err) return res.status(500).send('Error checking user credentials');
+        if (userResults.length === 0) return res.status(401).send('Invalid credentials');
+
+        // Check active subscription for Developer API
+        const subscriptionQuery = 'SELECT * FROM subscriptionHistory WHERE user_id = ? AND stripe_subscription_id = ? AND status = "active"';
+        db.query(subscriptionQuery, [userId, '3'], (subErr, subResults) => {
+            if (subErr) return res.status(500).send('Error checking subscription status');
+            if (subResults.length === 0) return res.status(403).send('No active Developer API subscription found');
+
+            // Generate API Token
+            const apiToken = crypto.randomBytes(20).toString('hex');
+
+            // Store the API token in the database
+            const tokenInsertQuery = 'INSERT INTO apiTokens (user_id, token, scope) VALUES (?, ?, ?)';
+            db.query(tokenInsertQuery, [userId, apiToken, 'developer'], (tokenErr) => {
+                if (tokenErr) {
+                    console.error(`Error storing API token: ${tokenErr}`);
+                    return res.status(500).send('Error storing API token');
+                }
+
+                // Send the API token back to the user
+                res.json({ token: apiToken });
+            });
+        });
+    });
+});
+
+
+
+
+app.post('/developersAPI', verifyApiKey, async (req, res) => {
+
+    const { prompt, negative_prompt, steps, seed, width, height, cfg_scale, userId, APIKey } = req.body;
+    console.log("Received userId:", prompt);
+    console.log("Received userId:", negative_prompt);
+    console.log("Received userId:", steps);
+    console.log("Received userId:", seed);
+    console.log("Received userId:", width);
+    console.log("Received userId:", cfg_scale);
+    console.log("Received userId:", userId);
+    if (DevelopersAPIKey != APIKey) {
+        return res.status(403).send('User not authenticated');
+    }
+    if (!currentNgrokUrl) {
+        return res.status(503).send({ error: 'Server not ready or ngrok tunnel not established' });
+    }
+    try {
+        const response = await axios.post('${currentNgrokUrl}/generateImage', {
+            prompt, negative_prompt, steps, seed, width, height, cfg_scale
+        });
+
+        // Extract image base64 data and convert to Buffer
+        const imageHex = response.data.imageHex;
+        const imageBuffer = Buffer.from(imageHex, 'base64');
+
+        // Create a Readable stream from the Buffer
+        const readableStream = new Readable();
+        readableStream.push(imageBuffer);
+        readableStream.push(null);
+
+        // Define file name
+        const fileName = `image_${Date.now()}.jpeg`;
+
+        // Upload the stream to MinIO
+        const bucketName = 'aidashboardbucket';
+        // minioClient.putObject(bucketName, fileName, readableStream, imageBuffer.length, async (err, etag) => {
+        //     if (err) {
+        //         console.error(`Error uploading to MinIO: ${err}`);
+        //         return res.status(500).send(err.message);
+        //     }
+
+        //     // Image uploaded to MinIO, now send the same image data back to the frontend
+        //     res.json({ imageHex });
+        // });
+
+        minioClient.putObject(bucketName, fileName, readableStream, imageBuffer.length, async (err, etag) => {
+            if (err) {
+                console.error(`Error uploading to MinIO: ${err}`);
+                return res.status(500).send(err.message);
+            }
+
+            // Construct the URL for the image
+            const imageUrl = `https://ecstasyessentials.shop/images/${fileName}`;
+            // const imageUrl = `https://${bucketName}/${fileName}`;
+
+            // https://ecstasyessentials.shop/images/imageMinio5.png
+
+            // Store the image URL and related data in the userGallery table
+            const insertQuery = "INSERT INTO userGallery (user_id, prompt, negative_prompt, steps, seed, width, height, cfg_scale, image_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+            db.query(insertQuery, [userId, prompt, negative_prompt, steps, seed, width, height, cfg_scale, imageUrl], (err, results) => {
+                if (err) {
+                    console.error(`Error saving image data to database: ${err}`);
+                    return res.status(500).send('Error saving image data');
+                }
+                console.log("Image data saved to database");
+
+                // Image uploaded to MinIO and data stored in DB, now send the image data back to the frontend
+                res.json({ imageHex });
+            });
+        });
+    } catch (error) {
+        console.error(`Error: ${error.message}`);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
+
+
 // app.get('/dashboard', (req, res) => {
 //     if (!req.session.userId) {
 //         return res.redirect('/login');
@@ -1141,13 +1352,6 @@ app.post('/search', (req, res) => {
 });
 
 
-app.get('/DevelopersAPI', (req, res) => {
-    res.render('DevelopersAPI');
-});
-
-app.post('/DevelopersAPI', (req, res) => {
-    res.send('POST request to /DevelopersAPI');
-});
 
 
 

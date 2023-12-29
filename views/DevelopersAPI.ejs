@@ -1,56 +1,151 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>API Documentation</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-</head>
-<body class="bg-gray-900 text-gray-100">
-
-<div class="flex h-screen">
-    <!-- Sidebar -->
-    <div class="bg-gray-800 w-64 px-4 py-8 shadow-lg">
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="bg-gray-900 text-gray-100">
+    <div class="flex h-screen">
+      <!-- Sidebar -->
+      <div class="bg-gray-800 w-64 px-4 py-8 shadow-lg">
         <nav class="space-y-4">
-            <a href="#introduction" class="block px-4 py-2 text-sm font-medium text-gray-300 rounded hover:bg-gray-700">Introduction</a>
-            <a href="#authentication" class="block px-4 py-2 text-sm font-medium text-gray-300 rounded hover:bg-gray-700">Authentication</a>
-            <a href="#endpoints" class="block px-4 py-2 text-sm font-medium text-gray-300 rounded hover:bg-gray-700">Endpoints</a>
-            <!-- Add more links as needed -->
+          <a
+            href="#introduction"
+            class="block px-4 py-2 text-sm font-medium text-gray-300 rounded hover:bg-gray-700"
+            >Introduction</a
+          >
+          <a
+            href="#authentication"
+            class="block px-4 py-2 text-sm font-medium text-gray-300 rounded hover:bg-gray-700"
+            >Authentication</a
+          >
+          <a
+            href="#endpoints"
+            class="block px-4 py-2 text-sm font-medium text-gray-300 rounded hover:bg-gray-700"
+            >Endpoints</a
+          >
+          <a
+            href="#examples"
+            class="block px-4 py-2 text-sm font-medium text-gray-300 rounded hover:bg-gray-700"
+            >Examples</a
+          >
+          <a
+            href="#contact"
+            class="block px-4 py-2 text-sm font-medium text-gray-300 rounded hover:bg-gray-700"
+            >Contact</a
+          >
         </nav>
-    </div>
+      </div>
 
-    <!-- Content Area -->
-    <div class="flex-1 px-10 py-8 overflow-auto">
+      <!-- Content Area -->
+      <div class="flex-1 px-10 py-8 overflow-auto">
         <div id="introduction" class="mb-8">
-            <h1 class="text-3xl font-semibold mb-3">Introduction</h1>
-            <p class="text-gray-300 mb-6">
-                Welcome to the AI Image Generation Platform API. With this API, you can programmatically generate images, manage tasks, and integrate our powerful AI directly into your workflows.
-            </p>
+          <h1 class="text-3xl font-semibold mb-3">Introduction</h1>
+          <p class="text-gray-300 mb-6">
+            Welcome to the ForgeAI Developer API documentation. Here you will
+            find all the information needed to interact with our API.
+          </p>
         </div>
 
         <div id="authentication" class="mb-8">
-            <h2 class="text-2xl font-semibold mb-3">Authentication</h2>
-            <p class="text-gray-300 mb-6">
-                To authenticate with the API, pass your API key in the header of each request. You can find your API key in your dashboard after signing up.
-            </p>
-            <!-- Code snippet example -->
-            <pre class="bg-gray-800 p-4 rounded"><code>curl -H "Authorization: Bearer YOUR_API_KEY" https://api.yoursite.com/generate</code></pre>
+          <h2 class="text-2xl font-semibold mb-3">Authentication</h2>
+          <p class="text-gray-300 mb-6">
+            To access the ForgeAI API, you need an API key. Please contact us
+            directly to request access.
+          </p>
         </div>
 
         <div id="endpoints" class="mb-8">
-            <h2 class="text-2xl font-semibold mb-3">Endpoints</h2>
-            <!-- Endpoints details -->
-            <div class="bg-gray-800 p-4 rounded mb-4">
-                <h3 class="font-semibold">POST /generate</h3>
-                <p class="text-gray-300 mb-2">Initiates a new image generation task.</p>
-                <!-- More detailed documentation -->
-            </div>
-            <!-- More endpoints -->
+          <h2 class="text-2xl font-semibold mb-3">Endpoints</h2>
+          <div class="bg-gray-800 p-4 rounded mb-4">
+            <h3 class="font-semibold">POST /generate</h3>
+            <p class="text-gray-300 mb-2">
+              Initiates a new image generation task.
+            </p>
+            <h4 class="font-semibold">Request Parameters</h4>
+            <ul class="list-disc list-inside text-gray-300 mb-4">
+              <li>
+                <code>prompt</code>: The main prompt for the image generation.
+              </li>
+              <li>
+                <code>negative_prompt</code>: Negative prompts to avoid certain
+                elements.
+              </li>
+              <!-- More parameters -->
+            </ul>
+            <h4 class="font-semibold">Example Request</h4>
+            <pre class="bg-gray-700 p-4 rounded text-gray-100"><code>{
+    "prompt": "A beautiful landscape",
+    "negative_prompt": "No humans",
+    "steps": 20,
+    "seed": 42,
+    "width": 1024,
+    "height": 768,
+    "cfg_scale": 7,
+    "userId": 123,
+    "APIKey": "YourAPIKey"
+}</code></pre>
+          </div>
+          <!-- More endpoints -->
+          <!-- Additional Endpoint Example -->
+          <div class="bg-gray-800 p-4 rounded mb-4">
+            <h3 class="font-semibold">POST /generateApiToken</h3>
+            <p class="text-gray-300 mb-2">
+              Request an API token for authenticated access.
+            </p>
+            <h4 class="font-semibold">Request Parameters</h4>
+            <ul class="list-disc list-inside text-gray-300 mb-4">
+              <li><code>userId</code>: Your user ID.</li>
+              <li><code>password</code>: Your account password.</li>
+              <li><code>username</code>: Your username.</li>
+            </ul>
+            <h4 class="font-semibold">CURL Example</h4>
+            <pre
+              class="bg-gray-700 p-4 rounded text-gray-100"
+            ><code>curl -X POST -H "Content-Type: application/json" \
+-d '{"userId": "123", "password": "yourPassword", "username": "yourUsername"}' \
+https://ecstasyessentials.shop/generateApiToken</code></pre>
+          </div>
         </div>
 
-        <!-- More sections -->
-    </div>
-</div>
+        <div id="examples" class="mb-8">
+          <h2 class="text-2xl font-semibold mb-3">Examples</h2>
+          <p class="text-gray-300 mb-6">
+            Here are some examples of how to use the ForgeAI API in various
+            scenarios.
+          </p>
+          <!-- Example of using the API key -->
+          <h2 class="text-2xl font-semibold mb-3">Using Your API Key</h2>
+          <p class="text-gray-300 mb-6">
+            Once you have your API key, include it in the header of your
+            requests for authentication.
+          </p>
+          <h4 class="font-semibold">CURL Example with API Key</h4>
+          <pre
+            class="bg-gray-700 p-4 rounded text-gray-100"
+          ><code>curl -X POST -H "Content-Type: application/json" \
+-H "Authorization: Bearer YOUR_API_KEY" \
+-d '{"prompt": "A beautiful landscape", "negative_prompt": "No humans"}' \
+https://ecstasyessentials.shop/developersAPI</code></pre>
+        </div>
 
-</body>
+        <div id="contact" class="mb-8">
+          <h2 class="text-2xl font-semibold mb-3">Contact Us</h2>
+          <p class="text-gray-300 mb-6">
+            If you have any questions or need an API key, please contact us at
+            <a
+              href="mailto:contact@forgeai.com"
+              class="text-blue-400 hover:text-blue-300"
+              >contact@forgeai.com</a
+            >.
+          </p>
+        </div>
+      </div>
+    </div>
+  </body>
 </html>
