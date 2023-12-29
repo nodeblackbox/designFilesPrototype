@@ -23,6 +23,41 @@ const { error } = require('console');
 const validator = require('validator');
 
 
+// OAuth2 setup
+// const https = require('https');
+// const fs = require('fs');
+
+// const privateKey = fs.readFileSync('path/to/privateKey.key', 'utf8');
+// const certificate = fs.readFileSync('path/to/certificate.crt', 'utf8');
+// const ca = fs.readFileSync('path/to/ca_bundle.crt', 'utf8');
+
+// const credentials = { key: privateKey, cert: certificate, ca: ca };
+// const httpsServer = https.createServer(credentials, app);
+
+
+
+
+
+const rateLimit = require('express-rate-limit');
+
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // Limit each IP to 5 login requests per windowMs
+    message: 'Too many login attempts from this IP, please try again after 15 minutes'
+});
+
+
+
+// const cors = require('cors');
+// const corsOptions = {
+//     origin: 'https://ecstasyessentials.shop/',
+//     optionsSuccessStatus: 200
+// };
+// app.use(cors(corsOptions));
+
+
+
+
 
 const saltRounds = 10;
 
@@ -787,19 +822,19 @@ app.get('/logout', (req, res) => {
 
 
 
-app.get('/addbook', function (req, res) {
-    const sqlquery = "SELECT * FROM publishers";
-    db.query(sqlquery, (err, publishers) => {
-        if (err) {
-            return res.status(500).send('There was a problem retrieving publishers. Please try again later.');
-        } else {
-            res.render('addbook.ejs', {
-                ...shopData,      // This unpacks ...shopData and sends its properties to the view
-                publishers: publishers
-            });
-        }
-    });
-});
+// app.get('/addbook', function (req, res) {
+//     const sqlquery = "SELECT * FROM publishers";
+//     db.query(sqlquery, (err, publishers) => {
+//         if (err) {
+//             return res.status(500).send('There was a problem retrieving publishers. Please try again later.');
+//         } else {
+//             res.render('addbook.ejs', {
+//                 ...shopData,      // This unpacks ...shopData and sends its properties to the view
+//                 publishers: publishers
+//             });
+//         }
+//     });
+// });
 
 
 
@@ -1023,7 +1058,7 @@ app.post('/dashboard', async (req, res) => {
 
 
 
-
+// Developer API
 
 // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
