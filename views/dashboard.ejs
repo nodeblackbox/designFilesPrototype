@@ -103,30 +103,33 @@
         display: block;
         margin-bottom: 0.5rem;
       }
+      .range-value {
+        text-align: center;
+        margin-top: 0.5rem;
+        color: #fff;
+        font-size: 0.9rem;
+      }
     </style>
   </head>
   <body>
     <button onclick="toggleDarkMode()" class="dark-theme-toggle">🌙</button>
     <div class="main-container">
       <div class="flex-row">
-
         <!-- Left Image Section -->
 
-          <div class="card">
-            <div id="ImagesPlaceHolder" >
-              <img src="genImagesPlace1.png" alt="Stock Image" />
-            </div>
-            
-            <div id="loadingMessage" style="display: none">Loading...</div>
-            <img
-              id="generatedImage"
-              style="display: none"
-              alt="Generated Image"
-            />
+         <div class="card">
+          <div id="ImagesPlaceHolder">
+            <img src="genImagesPlace1.png" alt="Stock Image" />
           </div>
 
+          <div id="loadingMessage" style="display: none">Loading...</div>
+          <div id="imageContainer" style="display: none">
+            <img id="generatedImage" alt="Generated Image" />
+            <a href="#" id="downloadLink" class="button" download="generatedImage.jpg" style="display: block; margin-top: 1rem;">Download Image</a>
+          </div>
+        </div>
+
         <form id="imageForm" action="/" method="POST">
-          
           <!-- Right Menu Section -->
           <div class="card">
             <div class="form-group">
@@ -166,17 +169,22 @@
               </div>
             </div>
 
+            <!-- Steps Input with Value Display -->
             <div class="form-group">
               <label for="steps">Steps</label>
               <input
                 type="range"
                 id="steps"
                 name="steps"
-                min="0"
+                min="1"
                 max="100"
-                value="20"
+                value="30"
                 class="input-field"
+                step="1"
+                oninput="document.getElementById('stepsValue').innerText=this.value"
               />
+              <div id="stepsValue" class="range-value">20</div>
+              <!-- Display for current Steps value -->
             </div>
 
             <div class="form-group">
@@ -202,7 +210,7 @@
                 value="512"
               />
             </div>
-
+            <!-- CFG Scale Input -->
             <div class="form-group">
               <label for="cfg-scale">CFG Scale</label>
               <input
@@ -210,12 +218,18 @@
                 id="cfg-scale"
                 name="cfg_scale"
                 class="input-field"
-                placeholder="7"
-                value="7"
+                placeholder="7.0"
+                value="8.5"
+                step="0.1"
               />
             </div>
 
-            <input type="hidden" id="userId" name="userId" value="<%= userId %>">
+            <input
+              type="hidden"
+              id="userId"
+              name="userId"
+              value="<%= userId %>"
+            />
 
             <input type="submit" value="Generate Image" class="button" />
           </div>
@@ -226,6 +240,9 @@
     <!--     </div> -->
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
     <script>
+       document.getElementById('steps').addEventListener('input', function () {
+        document.getElementById('stepsValue').innerText = this.value;
+      });
       function toggleDarkMode() {
         const currentTheme =
           document.documentElement.getAttribute("data-theme");
@@ -236,13 +253,12 @@
         }
       }
 
-      $(document).ready(function () {
+       $(document).ready(function () {
         $("#imageForm").submit(function (event) {
-          event.preventDefault(); // Prevent default form submission
+          event.preventDefault();
           $("#loadingMessage").show();
-          $("#generatedImage").hide();
+          $("#imageContainer").hide();
           $("#ImagesPlaceHolder").hide();
-          
           
           $.ajax({
             type: "POST",
@@ -250,9 +266,10 @@
             data: $(this).serialize(),
             success: function (response) {
               $("#loadingMessage").hide();
-              $("#generatedImage")
-                .attr("src", "data:image/jpeg;base64," + response.imageHex)
-                .show();
+              var imageData = "data:image/jpeg;base64," + response.imageHex;
+              $("#generatedImage").attr("src", imageData);
+              $("#downloadLink").attr("href", imageData);
+              $("#imageContainer").show();
             },
             error: function () {
               $("#loadingMessage").hide();

@@ -474,6 +474,7 @@ app.get('/payment-cancelled', (req, res) => {
 
 //api Index page
 app.get('/api/search/basic', (req, res) => {
+    console.log("/api/search/basic")
     const searchTerm = req.query.term;
     const searchQuery = `
     SELECT * FROM generatedImages 
@@ -490,6 +491,7 @@ app.get('/api/search/basic', (req, res) => {
 
 
 app.get('/api/search/user', (req, res) => {
+    console.log("/api/search/user")
     const userId = req.query.userId;
     const searchQuery = 'SELECT * FROM generatedImages WHERE user_id = ?';
     db.query(searchQuery, [userId], (err, results) => {
@@ -497,11 +499,13 @@ app.get('/api/search/user', (req, res) => {
             console.error(err);
             return res.status(500).json({ message: 'Internal server error' });
         }
+        console.log("results", results)
         res.json({ items: results });
     });
 });
 
 app.get('/api/search/negativePrompt', (req, res) => {
+    console.log("/api/search/negativePrompt")
     const negativePrompt = req.query.negativePrompt;
     const searchQuery = 'SELECT * FROM generatedImages WHERE negative_prompt LIKE ?';
     db.query(searchQuery, [`%${negativePrompt}%`], (err, results) => {
@@ -509,11 +513,13 @@ app.get('/api/search/negativePrompt', (req, res) => {
             console.error(err);
             return res.status(500).json({ message: 'Internal server error' });
         }
+        console.log("results", results)
         res.json({ items: results });
     });
 });
 
 app.get('/api/search/style', (req, res) => {
+    console.log("/api/search/style")    
     const style = req.query.style;
     const searchQuery = 'SELECT * FROM generatedImages WHERE style = ?';
     db.query(searchQuery, [style], (err, results) => {
@@ -521,22 +527,26 @@ app.get('/api/search/style', (req, res) => {
             console.error(err);
             return res.status(500).json({ message: 'Internal server error' });
         }
+        console.log("results", results)
         res.json({ items: results });
     });
 });
 
 app.get('/api/search/alphabetical', (req, res) => {
+    console.log("/api/search/alphabetical") 
     const searchQuery = 'SELECT * FROM generatedImages ORDER BY header ASC';
     db.query(searchQuery, (err, results) => {
         if (err) {
             console.error(err);
             return res.status(500).json({ message: 'Internal server error' });
         }
+        console.log("results", results)
         res.json({ items: results });
     });
 });
 
 app.get('/api/search/advanced', (req, res) => {
+    console.log("/api/search/advanced")
     let { searchTerm, userId, style, negativePrompt } = req.query;
     searchTerm = searchTerm || '';
     let filters = [];
@@ -566,11 +576,13 @@ app.get('/api/search/advanced', (req, res) => {
             console.error(err);
             return res.status(500).json({ message: 'Internal server error' });
         }
+        console.log("results", results)
         res.json({ items: results });
     });
 });
 
 app.post('/api/delete-account', (req, res) => {
+    console.log("/api/delete-account")
     const userId = req.body.userId;
 
     // Check if userId is provided

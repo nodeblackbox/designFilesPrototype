@@ -171,8 +171,87 @@
     >
       <!-- Gallery items will be dynamically inserted here -->
     </div>
-
     <script>
+      // Define the API endpoint base URL
+      const apiBaseUrl = "/api/search/";
+      let currentSearchType = "basic"; // Default search type
+
+      document.addEventListener("DOMContentLoaded", () => {
+        // Load initial images on page load
+        loadGalleryItems();
+
+        // Handle search button click
+        document
+          .getElementById("searchButton")
+          .addEventListener("click", () => {
+            const searchTerm = document.getElementById("searchInput").value;
+            loadGalleryItems(searchTerm);
+          });
+
+        // Handle search type button clicks
+        document.querySelectorAll(".search-type-btn").forEach((btn) => {
+          btn.addEventListener("click", function () {
+            currentSearchType = this.getAttribute("data-search-type");
+            // Update button styles to indicate active search type
+            updateActiveButtonStyle(this);
+            loadGalleryItems();
+          });
+        });
+      });
+
+      function loadGalleryItems(searchTerm = "") {
+        fetch(
+          `${apiBaseUrl}${currentSearchType}?term=${encodeURIComponent(
+            searchTerm
+          )}`
+        )
+          .then((response) => response.json())
+          .then((data) => {
+            updateGallery(data.items);
+          })
+          .catch((error) => console.error("Error:", error));
+      }
+
+      function updateGallery(items) {
+        const galleryContainer = document.getElementById("gallery");
+        galleryContainer.innerHTML = ""; // Clear existing items
+        items.forEach((item) => {
+          const galleryCard = createGalleryCard(item);
+          galleryContainer.appendChild(galleryCard);
+        });
+      }
+
+      function createGalleryCard(item) {
+        // Assuming that the item object has image_url, header, and description properties
+        if (!item || !item.image_url || !item.header) {
+          console.error("Invalid item:", item);
+          return document.createElement("div"); // Return an empty div in case of invalid data
+        }
+
+        const card = document.createElement("div");
+        card.className =
+          "gallery-card rounded-lg overflow-hidden shadow-lg m-4";
+        card.innerHTML = `
+      <img class="w-full h-auto" src="${item.image_url}" alt="${item.header}">
+      <div class="card-details">
+        <div class="font-bold text-xl mb-2">${item.header}</div>
+        <p>${item.description || ""}</p>
+      </div>
+    `;
+        return card;
+      }
+
+      function updateActiveButtonStyle(activeBtn) {
+        document.querySelectorAll(".search-type-btn").forEach((btn) => {
+          btn.classList.remove("bg-blue-500", "text-white");
+          btn.classList.add("bg-gray-800", "text-gray-400");
+        });
+        activeBtn.classList.add("bg-blue-500", "text-white");
+      }
+    </script>
+
+    <!-- <script>
+
       // Define the API endpoint base URL
       const apiBaseUrl = "/api/search/";
       let currentSearchType = "basic"; // Default search type
@@ -206,6 +285,7 @@
         )
           .then((response) => response.json())
           .then((data) => {
+            console.log("Received data:", data);
             updateGallery(data.items);
           })
           .catch((error) => console.error("Error:", error));
@@ -241,7 +321,7 @@
         });
         activeBtn.classList.add("bg-blue-500", "text-white");
       }
-    </script>
+    </script> -->
 
     <!-- Add custom styles for search type buttons -->
     <style>
