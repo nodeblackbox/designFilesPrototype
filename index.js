@@ -45,9 +45,6 @@ const db = mysql.createConnection({
 });
 
 
-
-
-
 // MinIO Client Setup
 const minioClient = new Minio.Client({
     endPoint: process.env.MINIO_ENDPOINT,
@@ -818,6 +815,7 @@ app.post('/dashboard', async (req, res) => {
         //     // Image uploaded to MinIO, now send the same image data back to the frontend
         //     res.json({ imageHex });
         // });
+
         minioClient.putObject(bucketName, fileName, readableStream, imageBuffer.length, async (err, etag) => {
             if (err) {
                 console.error(`Error uploading to MinIO: ${err}`);
@@ -850,12 +848,12 @@ app.post('/dashboard', async (req, res) => {
 });
 
 
-app.get('/dashboard', (req, res) => {
-    if (!req.session.userId) {
-        return res.redirect('/login');
-    }
-    res.render('dashboard', { userId: req.session.userId });
-});
+// app.get('/dashboard', (req, res) => {
+//     if (!req.session.userId) {
+//         return res.redirect('/login');
+//     }
+//     res.render('dashboard', { userId: req.session.userId });
+// });
 // }
 
 app.get('/userImages/:userId', (req, res) => {
