@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/addons/p5.sound.min.js"></script>
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Futuristic Glass Website</title>
+    <meta charset="utf-8" />
+
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: black;
+        overflow: hidden;
+      }
+
+      body::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: radial-gradient(40vw 20vw at 50% 0%, purple, transparent);
+        opacity: 0.8;
+        pointer-events: none;
+        z-index: 1; /* Make sure it's above the balls */
+      }
+
+      .fuzzy-ball {
+        position: absolute;
+        border-radius: 50%;
+        width: 3px;
+        height: 3px;
+        background-color: rgba(255, 255, 255, 0.2);
+        pointer-events: none;
+      }
+      .website-banner {
+        background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)),
+          url(".jpg");
+        background-size: cover;
+        color: white;
+        padding: 100px 0;
+        text-align: center;
+      }
+
+      .website-banner .motto {
+        font-size: 50px;
+        font-family: "Syne", sans-serif;
+        margin-bottom: 20px;
+      }
+
+      .website-banner h1 {
+        font-size: 48px;
+        color: limegreen;
+        text-shadow: 0 0 5px limegreen, 0 0 5px limegreen, 0 0 5px limegreen,
+          0 0 5px limegreen; /* Reduced neon effect */
+        margin-bottom: 20px;
+        font-family: "Syne", sans-serif;
+      }
+
+      .website-banner {
+        display: flex;
+        flex-direction: column;
+        align-items: center; /* This will center-align the direct children */
+        /* ... rest of your styles ... */
+      }
+
+      .website-banner p {
+        font-size: 18px;
+      }
+      .custom-image {
+        max-width: 35%; /* Adjust this percentage to make the image larger or smaller */
+        display: block;
+        margin: 20px; /* Centers the image and adds padding on the top and bottom */
+      }
+
+      .cta-button {
+        display: inline-block;
+        padding: 10px 20px;
+        background-color: black; /* Updated background color to black */
+        color: white;
+        border: 2px solid limegreen;
+        border-radius: 50px;
+        text-decoration: none;
+        transition: background-color 0.3s, color 0.3s;
+        font-family: "Serif"; /* Added serif font */
+      }
+
+      .cta-button:hover {
+        background-color: limegreen;
+        color: black;
+      }
+
+      .trust-section {
+        margin-top: 50px;
+        display: flex;
+        align-items: center; /* Vertically align items */
+        padding: 15px;
+      }
+
+      .trust-text {
+        margin-left: 15px;
+        display: flex;
+        flex-direction: column;
+        align-items: center; /* Changed from flex-start to center */
+      }
+      .trust-section {
+        display: flex;
+        align-items: center;
+        padding: 15px;
+
+        justify-content: center; /* This will center-align the child items inside .trust-section */
+        font-size: 18px;
+      }
+      .stars {
+        color: #ffe71a;
+      }
+
+      /*This is where the slider Images are going to be*/
+      .carousel-container {
+        --d: 15s;
+        display: grid;
+        grid-template-columns: repeat(
+          3,
+          320px
+        ); /* Adjusted to account for the added space */
+        overflow: hidden;
+        -webkit-mask: linear-gradient(
+          90deg,
+          transparent,
+          #000 5%,
+          95%,
+          transparent
+        );
+        mask: linear-gradient(90deg, transparent, #000 5%, 95%, transparent);
+        border-radius: 1rem;
+        padding: 1rem;
+        z-index: 10;
+      }
+
+      .carousel-item {
+        grid-area: 1/1;
+        animation: slide var(--d) linear infinite;
+        padding: 0 10px; /* This adds space between images */
+      }
+
+      .carousel-item img {
+        border: 5px solid rgba(255, 255, 255, 0.5); /* Translucent border */
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06); /* Tailwind-like shadow */
+        border-radius: 0.5rem;
+        width: 100%;
+        height: 300px;
+        object-fit: cover;
+      }
+    </style>
+  </head>
+
+  <body class="text-white">
+    <div class="p-4 bg-opacity-10 bg-white fixed w-full z-50 backdrop-blur-md">
+      <div class="container mx-auto">
+        <div class="flex justify-between items-center">
+          <div class="text-xl font-bold">LOGO</div>
+          <div
+            class="flex space-x-4 bg-opacity-10 bg-white px-5 py-2 rounded-full border border-white border-opacity-30"
+          >
+            <a
+              href="#"
+              class="px-2 py-1 hover:bg-white hover:bg-opacity-20 rounded-full"
+              >Subscription</a
+            >
+            <a
+              href="#"
+              class="px-2 py-1 hover:bg-white hover:bg-opacity-20 rounded-full"
+              >Services</a
+            >
+            <a
+              href="#"
+              class="px-2 py-1 hover:bg-white hover:bg-opacity-20 rounded-full"
+              >Gallery</a
+            >
+            <a
+              href="#"
+              class="px-2 py-1 hover:bg-white hover:bg-opacity-20 rounded-full"
+              >Pricing</a
+            >
+            <a
+              href="#"
+              class="px-2 py-1 hover:bg-white hover:bg-opacity-20 rounded-full"
+              >Our Story</a
+            >
+            <a
+              href="#"
+              class="px-2 py-1 hover:bg-white hover:bg-opacity-20 rounded-full"
+              >Blog</a
+            >
+          </div>
+          <a
+            href="#"
+            class="flex items-center space-x-2 px-4 py-2 rounded-full bg-opacity-10 bg-white hover:bg-opacity-20"
+          >
+            <svg
+              class="w-5 h-5"
+              xmlns="http://www.w3.org/2000/svg"
+              viewbox="0 0 24 24"
+              fill="currentColor"
+            >
+              <path
+                d="M12 14c2.67 0 8 1.34 8 4v2H4v-2c0-2.66 5.33-4 8-4zm0-2a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"
+              ></path>
+            </svg>
+            <span>Client Login</span>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <main class="pt-24">
+      <section>
+        <div class="website-banner">
+          <div class="motto">💰 Make money using AI 🤖</div>
+          <h1>Generate Your Ideas To Life</h1>
+          <p>
+            Unlock the power of AI to drive innovation and growth in your
+            business.
+          </p>
+          <a href="#" class="cta-button">See our plans</a>
+          <div class="trust-section">
+            <img
+              src="imageOfTestimonials.webp"
+              alt="Testimonial Image"
+              class="custom-image"
+            />
+            <div class="trust-text">
+              <span>50+ businesses trust us</span>
+              <span class="stars"> ★★★★★ </span>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section>
+        <div class="bg-white flex items-center justify-center">
+          <div class="carousel-container rounded-xl overflow-hidden shadow-xl">
+            <!-- Add or remove images as needed -->
+            <div class="carousel-item">
+              <img src="img1.png" alt="Image 1" class="rounded-lg" />
+            </div>
+            <div class="carousel-item">
+              <img src="img2.png" alt="Image 2" class="rounded-lg" />
+            </div>
+            <div class="carousel-item">
+              <img src="img3.png" alt="Image 3" class="rounded-lg" />
+            </div>
+            <div class="carousel-item">
+              <img src="img4.png" alt="Image 4" class="rounded-lg" />
+            </div>
+            <div class="carousel-item">
+              <img src="img5.png" alt="Image 5" class="rounded-lg" />
+            </div>
+            <div class="carousel-item">
+              <img src="img6.png" alt="Image 6" class="rounded-lg" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Main Content Here... -->
+      <div class="content">
+        <div class="h-screen"></div>
+        <div class="h-screen"></div>
+      </div>
+    </main>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        const items = document.querySelectorAll(".carousel-item");
+        const animationPercent = 100 / items.length;
+
+        // Generate the animation dynamically
+        const style = document.createElement("style");
+        style.innerHTML = `
+                @keyframes slide {
+                    ${animationPercent}% {
+                        transform: translate(-110%);  /* Account for the added space */
+                    }
+                    ${animationPercent + 0.01}% {
+                        transform: translate(${
+                          (items.length - 1) * 110
+                        }%);  /* Account for the added space */
+                    }
+                }
+            `;
+        document.head.appendChild(style);
+
+        items.forEach((item, index) => {
+          item.style.animationDelay = `${-index * (15 / items.length)}s`;
+        });
+      });
+    </script>
+
+    <script>
+      const numberOfBalls = 200;
+
+      for (let i = 0; i < numberOfBalls; i++) {
+        createBall();
+      }
+
+      function createBall() {
+        let ball = document.createElement("div");
+        ball.classList.add("fuzzy-ball");
+        ball.style.left = Math.random() * window.innerWidth + "px";
+        ball.style.top = Math.random() * window.innerHeight + "px";
+        document.body.appendChild(ball);
+        animateBall(ball);
+      }
+
+      function animateBall(ball) {
+        let angle = Math.random() * 2 * Math.PI;
+        let speed = 0.2 + Math.random() * 1;
+
+        function move() {
+          let x = parseFloat(ball.style.left);
+          let y = parseFloat(ball.style.top);
+          let newX = x + Math.cos(angle) * speed;
+          let newY = y + Math.sin(angle) * speed;
+
+          if (
+            newX < 0 ||
+            newX > window.innerWidth ||
+            newY < 0 ||
+            newY > window.innerHeight
+          ) {
+            angle = Math.random() * 2 * Math.PI;
+          } else {
+            ball.style.left = newX + "px";
+            ball.style.top = newY + "px";
+          }
+          requestAnimationFrame(move);
+        }
+        move();
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,4 @@
+python launch.py --precision full --no-half --listen --enable-insecure-extension-access --api
+
+
+
