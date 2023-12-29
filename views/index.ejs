@@ -1,209 +1,268 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Basic Website</title>
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ForgeAI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* Custom Styles */
+      body {
+        font-family: "Roboto", sans-serif;
+        background-color: #1e2964;
+      }
+      .glass-effect {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11),
+          0 1px 3px rgba(0, 0, 0, 0.08);
+      }
+      nav {
+        background: linear-gradient(
+          90deg,
+          rgba(33, 150, 243, 1) 0%,
+          rgba(3, 169, 244, 1) 100%
+        );
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      .nav-links a {
+        transition: background-color 0.3s ease, transform 0.3s ease;
+      }
+      .nav-links a:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+        transform: translateY(-2px);
+      }
+      .rounded-button {
+        border-radius: 50px; /* Capsule shape */
+        padding: 10px 25px;
+      }
+      h2 {
+        color: #333;
+        font-size: 28px;
+      }
+      p {
+        color: #666;
+      }
+      .gallery-card {
+        position: relative;
+        overflow: hidden;
+      }
+
+      .card-details {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 20px;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        overflow: auto;
+      }
+
+      .gallery-card:hover .card-details {
+        opacity: 1;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-900 text-white">
     <!-- Navigation Bar -->
-    <nav>
-        <ul>
-            <li><a href="#gallery">Gallery</a></li>
-            <li><a href="#pricing">Pricing</a></li>
-            <li><a href="#our-story">Our Story</a></li>
-            <li><a href="#blog">Blog</a></li>
-            <li><a href="#affiliate">Affiliate</a></li>
-            <li><a href="#api">API</a></li>
-            <li><a href="#login">API</a></li>
-        </ul>
+    <nav class="p-4 text-white flex justify-between items-center">
+      <div class="logo">
+        <a href="/" class="text-xl font-bold">
+          <span class="text-white">ForgeAI</span>
+        </a>
+      </div>
+      <div class="nav-links flex gap-4">
+        <a
+          href="/gallery"
+          class="hover:bg-blue-800 px-3 py-2 rounded transition-colors duration-300"
+          >Gallery</a
+        >
+        <a
+          href="/dashboard"
+          class="hover:bg-blue-800 px-3 py-2 rounded transition-colors duration-300"
+          >Dashboard</a
+        >
+        <a
+          href="/plans"
+          class="hover:bg-blue-800 px-3 py-2 rounded transition-colors duration-300"
+          >Plans</a
+        >
+        <a
+          href="/about"
+          class="hover:bg-blue-800 px-3 py-2 rounded transition-colors duration-300"
+          >About Us</a
+        >
+        <a
+          href="/login"
+          class="hover:bg-blue-800 px-3 py-2 rounded transition-colors duration-300"
+          >Login</a
+        >
+        <a
+          href="/register"
+          class="bg-gray-800 hover:bg-gray-900 px-3 py-2 rounded transition-colors duration-300"
+          >Get Started</a
+        >
+      </div>
     </nav>
 
-    <!-- Gallery Section -->
-    <section id="gallery">
-        <h2>Gallery</h2>
-        <!-- Gallery content goes here -->
-    </section>
+    <!-- Search Bar Section -->
+    <!-- Search Bar and Buttons Section -->
+    <div class="flex flex-col items-center justify-center pt-16 pb-10 px-6">
+      <h2 class="mb-4 text-3xl md:text-4xl font-bold text-center">
+        Explore AI-Generated Imagery
+      </h2>
+      <div class="w-full max-w-4xl flex flex-wrap items-center gap-4">
+        <div class="flex-grow relative">
+          <input
+            id="searchInput"
+            type="search"
+            placeholder="What are you looking for?"
+            class="w-full px-6 py-4 pl-12 glass-effect rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+          />
+          <svg
+            class="w-8 h-8 absolute top-4 left-4 text-gray-300"
+            fill="none"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path d="M19 19l-3.5-3.5"></path>
+            <circle cx="11" cy="11" r="6"></circle>
+          </svg>
+        </div>
+        <button
+          id="searchButton"
+          class="glass-effect px-8 py-3 rounded-full font-semibold hover:bg-blue-500/20 transition-colors"
+        >
+          Search
+        </button>
+      </div>
 
-    <!-- Pricing Section -->
-    <section id="pricing">
-        <h2>Pricing</h2>
-        <!-- Pricing content goes here, integration with Stripe for payment processing -->
-    </section>
+      <!-- Search Type Buttons -->
+      <div class="flex mt-4 gap-2">
+        <button class="search-type-btn" data-search-type="basic">Basic</button>
+        <button class="search-type-btn" data-search-type="user">User</button>
+        <button class="search-type-btn" data-search-type="style">Style</button>
+        <button class="search-type-btn" data-search-type="negativePrompt">
+          Negative Prompt
+        </button>
+        <button class="search-type-btn" data-search-type="alphabetical">
+          Alphabetical
+        </button>
+      </div>
+    </div>
 
-    <!-- Our Story Section -->
-    <section id="our-story">
-        <h2>Our Story</h2>
-        <!-- Our Story content goes here -->
-    </section>
+    <!-- Image Gallery Placeholder -->
+    <div
+      id="gallery"
+      class="container mx-auto px-4 pt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4"
+    >
+      <!-- Gallery items will be dynamically inserted here -->
+    </div>
 
-    <!-- Blog Section -->
-    <section id="blog">
-        <h2>Blog</h2>
-        <!-- Blog content goes here -->
-    </section>
+    <script>
+      // Define the API endpoint base URL
+      const apiBaseUrl = "/api/search/";
+      let currentSearchType = "basic"; // Default search type
 
-    <!-- Affiliate Section -->
-    <section id="affiliate">
-        <h2>Affiliate</h2>
-        <!-- Affiliate content goes here -->
-    </section>
+      // Load initial images on page load
+      document.addEventListener("DOMContentLoaded", () => {
+        loadGalleryItems();
+      });
 
-    <!-- API Section -->
-    <section id="api">
-        <h2>API</h2>
-        <!-- API content goes here, possibly related to your application's API capabilities -->
-    </section>
-    <section id="login">
-    <h2>User Account</h2>
-    <p>Login or register for a user account. Session management details.</p>
-    </section>
+      // Handle search button click
+      document.getElementById("searchButton").addEventListener("click", () => {
+        const searchTerm = document.getElementById("searchInput").value;
+        loadGalleryItems(searchTerm);
+      });
 
-        <h1>Welcome to the Index Page</h1>
-       <section>
-        <h2>Index</h2>
-        <button onclick="location.href='/'">Go to </button>
-    </section>
-    <section>
-        <h2>product</h2>
-        <button onclick="location.href='product'">Go to product</button>
-    </section>
-    <section>
-        <h2>checkout</h2>
-        <button onclick="location.href='checkout'">Go to checkout</button>
-    </section>
-    <section>
-        <h2>payment-success</h2>
-        <button onclick="location.href='payment-success'">Go to payment-success</button>
-    </section>
-    <section>
-        <h2>payment-cancelled</h2>
-        <button onclick="location.href='payment-cancelled'">Go to payment-cancelled</button>
-    </section>
- 
-    <section>
-        <h2>example</h2>
-        <button onclick="location.href='example'">Go to example</button>
-    </section>
-    <section>
-        <h2>dashboard</h2>
-        <button onclick="location.href='dashboard'">Go to dashboard</button>
-    </section>
-    <section>
-        <h2>addbook</h2>
-        <button onclick="location.href='addbook'">Go to addbook</button>
-    </section>
-    <section>
-        <h2>list</h2>
-        <button onclick="location.href='list'">Go to list</button>
-    </section>
-    <section>
-        <h2>adminPanel</h2>
-        <button onclick="location.href='adminPanel'">Go to adminPanel</button>
-    </section>
-    <section>
-        <h2>affiliate</h2>
-        <button onclick="location.href='affiliate'">Go to affiliate</button>
-    </section>
-    <section>
-        <h2>DevelopersAPI</h2>
-        <button onclick="location.href='DevelopersAPI'">Go to DevelopersAPI</button>
-    </section>
-    <section>
-        <h2>addBlogPost</h2>
-        <button onclick="location.href='addBlogPost'">Go to addBlogPost</button>
-    </section>
-    <section>
-        <h2>blogDetail</h2>
-        <button onclick="location.href='blogDetail'">Go to blogDetail</button>
-    </section>
-    <section>
-        <h2>courses</h2>
-        <button onclick="location.href='courses'">Go to courses</button>
-    </section>
-    <section>
-        <h2>mygallery</h2>
-        <button onclick="location.href='mygallery'">Go to mygallery</button>
-    </section>
-    <section>
-        <h2>bargains</h2>
-        <button onclick="location.href='bargains'">Go to bargains</button>
-    </section>
-    <section>
-        <h2>extensionsProductPage</h2>
-        <button onclick="location.href='extensionsProductPage'">Go to extensionsProductPage</button>
-    </section>
-    <section>
-        <h2>extensionsShop</h2>
-        <button onclick="location.href='extensionsShop'">Go to extensionsShop</button>
-    </section>
-    <section>
-        <h2>search</h2>
-        <button onclick="location.href='search'">Go to search</button>
-    </section>
-    <section>
-        <h2>likedBlogs</h2>
-        <button onclick="location.href='likedBlogs'">Go to likedBlogs</button>
-    </section>
-    <section>
-        <h2>notifications</h2>
-        <button onclick="location.href='notifications'">Go to notifications</button>
-    </section>
-    <section>
-        <h2>userProfile</h2>
-        <button onclick="location.href='userProfile'">Go to userProfile</button>
-    </section>
-    <section>
-        <h2>login</h2>
-        <button onclick="location.href='login'">Go to login</button>
-    </section>
-    <section>
-        <h2>register</h2>
-        <button onclick="location.href='register'">Go to register</button>
-    </section>
-    <section>
-        <h2>blog</h2>
-        <button onclick="location.href='blog'">Go to blog</button>
-    </section>
-    <section>
-        <h2>contactUs</h2>
-        <button onclick="location.href='contactUs'">Go to contactUs</button>
-    </section>
-    <section>
-        <h2>errorPage</h2>
-        <button onclick="location.href='errorPage'">Go to errorPage</button>
-    </section>
-    <section>
-        <h2>gallery</h2>
-        <button onclick="location.href='gallery'">Go to gallery</button>
-    </section>
-    <section>
-        <h2>about</h2>
-        <button onclick="location.href='about'">Go to about</button>
-    </section>
-    <section>
-        <h2>plans</h2>
-        <button onclick="location.href='plans'">Go to plans</button>
-    </section>
-    <section>
-        <h2>privacyPolicy</h2>
-        <button onclick="location.href='privacyPolicy'">Go to privacyPolicy</button>
-    </section>
-    <section>
-        <h2>SalesFunnelVideo</h2>
-        <button onclick="location.href='SalesFunnelVideo'">Go to SalesFunnelVideo</button>
-    </section>
-    <section>
-        <h2>termsOfUse</h2>
-        <button onclick="location.href='termsOfUse'">Go to termsOfUse</button>
-    </section>
-    <section>
-        <h2>loginProto</h2>
-        <button onclick="location.href='loginProto'">Go to loginProto</button>
-    </section>
-    <!-- Footer -->
-    <footer>
-        <p>Copyright © [Your Company Name] [Year]. All rights reserved.</p>
-    </footer>
-</body>
+      // Handle search type button clicks
+      document.querySelectorAll(".search-type-btn").forEach((btn) => {
+        btn.addEventListener("click", function () {
+          currentSearchType = this.getAttribute("data-search-type");
+          // Update button styles to indicate active search type
+          updateActiveButtonStyle(this);
+          loadGalleryItems();
+        });
+      });
+
+      function loadGalleryItems(searchTerm = "") {
+        fetch(
+          `${apiBaseUrl}${currentSearchType}?term=${encodeURIComponent(
+            searchTerm
+          )}`
+        )
+          .then((response) => response.json())
+          .then((data) => {
+            updateGallery(data.items);
+          })
+          .catch((error) => console.error("Error:", error));
+      }
+
+      function updateGallery(items) {
+        const galleryContainer = document.getElementById("gallery");
+        galleryContainer.innerHTML = ""; // Clear existing items
+        items.forEach((item) => {
+          const galleryCard = createGalleryCard(item);
+          galleryContainer.appendChild(galleryCard);
+        });
+      }
+
+      function createGalleryCard(item) {
+        const card = document.createElement("div");
+        card.className =
+          "gallery-card rounded-lg overflow-hidden shadow-lg m-4";
+        card.innerHTML = `
+          <img class="w-full h-auto" src="${item.carousel_images[0]}" alt="${item.header}">
+          <div class="card-details">
+            <div class="font-bold text-xl mb-2">${item.header}</div>
+            <p>${item.description}</p>
+          </div>
+        `;
+        return card;
+      }
+
+      function updateActiveButtonStyle(activeBtn) {
+        document.querySelectorAll(".search-type-btn").forEach((btn) => {
+          btn.classList.remove("bg-blue-500", "text-white");
+          btn.classList.add("bg-gray-800", "text-gray-400");
+        });
+        activeBtn.classList.add("bg-blue-500", "text-white");
+      }
+    </script>
+
+    <!-- Add custom styles for search type buttons -->
+    <style>
+      .search-type-btn {
+        padding: 8px 16px;
+        background-color: #2d3748; /* Tailwind gray-800 */
+        color: #a0aec0; /* Tailwind gray-400 */
+        border-radius: 20px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background-color 0.3s, color 0.3s;
+      }
+
+      .search-type-btn:hover {
+        background-color: #4a5568; /* Tailwind gray-700 */
+      }
+
+      .search-type-btn.bg-blue-500 {
+        background-color: #4299e1; /* Tailwind blue-500 */
+        color: white;
+      }
+    </style>
+  </body>
 </html>

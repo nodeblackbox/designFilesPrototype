@@ -20,6 +20,8 @@ const MySQLStore = require('express-mysql-session')(session);
 const util = require('util');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { error } = require('console');
+const validator = require('validator');
+
 
 
 const saltRounds = 10;
@@ -397,6 +399,21 @@ app.post('/checkout/:productId', async (req, res) => {
 });
 
 
+app.get('/api/search', (req, res) => {
+
+    const searchTerm = req.query.term;
+    const searchQuery = `
+    SELECT * FROM generatedImages 
+    WHERE header LIKE ? OR description LIKE ? OR tags LIKE ?
+  `;
+    db.query(searchQuery, [`%${searchTerm}%`, `%${searchTerm}%`, `%${searchTerm}%`], (err, results) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ message: 'Internal server error' });
+        }
+        res.json({ items: results });
+    });
+});
 
 
 console.log("session", JSON.stringify(session))
@@ -416,6 +433,106 @@ app.get('/payment-success', (req, res) => {
 
 app.get('/payment-cancelled', (req, res) => {
     res.render('cancelled');
+});
+
+
+
+//api Index page
+app.get('/api/search/basic', (req, res) => {
+    const searchTerm = req.query.term;
+    const searchQuery = `
+    SELECT * FROM generatedImages 
+    WHERE header LIKE ? OR description LIKE ? OR tags LIKE ?
+    `;
+    db.query(searchQuery, [`%${searchTerm}%`, `%${searchTerm}%`, `%${searchTerm}%`], (err, results) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ message: 'Internal server error' });
+        }
+        res.json({ items: results });
+    });
+});
+
+
+app.get('/api/search/user', (req, res) => {
+    const userId = req.query.userId;
+    const searchQuery = 'SELECT * FROM generatedImages WHERE user_id = ?';
+    db.query(searchQuery, [userId], (err, results) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ message: 'Internal server error' });
+        }
+        res.json({ items: results });
+    });
+});
+
+app.get('/api/search/negativePrompt', (req, res) => {
+    const negativePrompt = req.query.negativePrompt;
+    const searchQuery = 'SELECT * FROM generatedImages WHERE negative_prompt LIKE ?';
+    db.query(searchQuery, [`%${negativePrompt}%`], (err, results) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ message: 'Internal server error' });
+        }
+        res.json({ items: results });
+    });
+});
+
+app.get('/api/search/style', (req, res) => {
+    const style = req.query.style;
+    const searchQuery = 'SELECT * FROM generatedImages WHERE style = ?';
+    db.query(searchQuery, [style], (err, results) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ message: 'Internal server error' });
+        }
+        res.json({ items: results });
+    });
+});
+
+app.get('/api/search/alphabetical', (req, res) => {
+    const searchQuery = 'SELECT * FROM generatedImages ORDER BY header ASC';
+    db.query(searchQuery, (err, results) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ message: 'Internal server error' });
+        }
+        res.json({ items: results });
+    });
+});
+
+app.get('/api/search/advanced', (req, res) => {
+    let { searchTerm, userId, style, negativePrompt } = req.query;
+    searchTerm = searchTerm || '';
+    let filters = [];
+    let queryParams = [];
+    let baseQuery = 'SELECT * FROM generatedImages';
+
+    if (userId) {
+        filters.push(' user_id = ? ');
+        queryParams.push(userId);
+    }
+    if (style) {
+        filters.push(' style = ? ');
+        queryParams.push(style);
+    }
+    if (negativePrompt) {
+        filters.push(' negative_prompt LIKE ? ');
+        queryParams.push(`%${negativePrompt}%`);
+    }
+    if (filters.length > 0) {
+        baseQuery += ' WHERE ';
+        baseQuery += filters.join(' AND ');
+    }
+    baseQuery += ' ORDER BY header ASC';
+
+    db.query(baseQuery, queryParams, (err, results) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ message: 'Internal server error' });
+        }
+        res.json({ items: results });
+    });
 });
 
 
@@ -707,33 +824,55 @@ const storage = multer.diskStorage({
 });
 
 
-
-// Endpoint to list all images in a bucket
 app.get('/gallery', (req, res) => {
     const bucketName = 'aidashboardbucket';
-    console.log("imagesss-------------");
-
     const objects = [];
 
     minioClient.listObjectsV2(bucketName, '', true, "1000")
         .on("error", error => {
-            console.log(error)
-            return res.status(500).send(error)
+            console.error(error);
+            res.status(500).send("Error fetching images");
         })
         .on('data', data => {
-            // console.log("data")
-            objects.push(data)
+            objects.push({
+                name: data.name,
+                url: `/images/${data.name}` // Assuming this is the correct URL format
+            });
         })
         .on('end', () => {
-            console.log("end")
-            let html = '<h1>Images</h1>';
-            console.log(objects)
-            objects.forEach(file => {
-                html += `<div><img src="/images/${file.name}" style="width:200px;"><p>${file.name}</p></div>`;
-            });
-            res.send(html);
-        })
+            // Render the 'gallery.ejs' template and pass the image objects
+            res.render('gallery', { images: objects });
+        });
 });
+
+
+
+// // Endpoint to list all images in a bucket
+// app.get('/gallery', (req, res) => {
+//     const bucketName = 'aidashboardbucket';
+//     console.log("imagesss-------------");
+
+//     const objects = [];
+
+//     minioClient.listObjectsV2(bucketName, '', true, "1000")
+//         .on("error", error => {
+//             console.log(error)
+//             return res.status(500).send(error)
+//         })
+//         .on('data', data => {
+//             // console.log("data")
+//             objects.push(data)
+//         })
+//         .on('end', () => {
+//             console.log("end")
+//             let html = '<h1>Images</h1>';
+//             console.log(objects)
+//             objects.forEach(file => {
+//                 html += `<div><img src="/images/${file.name}" style="width:200px;"><p>${file.name}</p></div>`;
+//             });
+//             res.send(html);
+//         })
+// });
 
 
 
@@ -933,13 +1072,105 @@ app.post('/upload', upload.single('image'), (req, res) => {
 // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 console.log("bucket names -----------------")
-const stream2 = minioClient.listObjects('aidashboardbucket', '', true);
-stream2.on('data', function (obj) { console.log(obj); });
-stream2.on('error', function (err) { console.error(err); })
+// const stream2 = minioClient.listObjects('aidashboardbucket', '', true);
+// stream2.on('data', function (obj) { console.log(obj); });
+// stream2.on('error', function (err) { console.error(err); })
 
 // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+
+
+// app.get('/gallery', (req, res) => {
+//     res.render('gallery.ejs');
+// });
+
+// app.post('/gallery', (req, res) => {
+//     res.send('POST request to public/gallery');
+// });
+
+app.get('/about', (req, res) => {
+    res.render('about.ejs');
+});
+
+app.post('/about', (req, res) => {
+    res.send('POST request to public/home/about');
+});
+
+app.get('/search', (req, res) => {
+    res.render('search.ejs');
+});
+
+app.post('/search', (req, res) => {
+    res.send('POST request to shop/search');
+});
+
+
+app.get('/DevelopersAPI', (req, res) => {
+    res.render('DevelopersAPI');
+});
+
+app.post('/DevelopersAPI', (req, res) => {
+    res.send('POST request to /DevelopersAPI');
+});
+
+
+
+app.get('/errorPage', (req, res) => {
+    console.log("test from errorPage")
+    res.render('errorPage.ejs');
+});
+
+app.post('/errorPage', (req, res) => {
+    res.send('POST request to public/errorPage');
+});
+
+
+app.get('/adminPanel', (req, res) => {
+    res.render('adminPanel.ejs');
+});
+
+app.post('/adminPanel', (req, res) => {
+    res.send('POST request to admin/adminPanel');
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 // Test functionality for database
@@ -952,6 +1183,7 @@ app.post('/addbook', (req, res) => {
 });
 
 
+
 // Test queries for listing 
 app.get('/list', (req, res) => {
     res.render('ejs');
@@ -961,13 +1193,7 @@ app.post('/list', (req, res) => {
     res.send('POST request to list');
 });
 
-app.get('/adminPanel', (req, res) => {
-    res.render('adminPanel.ejs');
-});
 
-app.post('/adminPanel', (req, res) => {
-    res.send('POST request to admin/adminPanel');
-});
 
 app.get('/affiliate', (req, res) => {
     res.render('affiliate.ejs');
@@ -977,13 +1203,7 @@ app.post('/affiliate', (req, res) => {
     res.send('POST request to affiliate/affiliate');
 });
 
-app.get('/DevelopersAPI', (req, res) => {
-    res.render('DevelopersAPI');
-});
 
-app.post('/DevelopersAPI', (req, res) => {
-    res.send('POST request to /DevelopersAPI');
-});
 
 app.get('/addBlogPost', (req, res) => {
     res.render('addBlogPost.ejs');
@@ -1041,13 +1261,6 @@ app.post('/extensionsShop', (req, res) => {
     res.send('POST request to shop/extensionsShop');
 });
 
-app.get('/search', (req, res) => {
-    res.render('search.ejs');
-});
-
-app.post('/search', (req, res) => {
-    res.send('POST request to shop/search');
-});
 
 app.get('/likedBlogs', (req, res) => {
     res.render('likedBlogs.ejs');
@@ -1082,30 +1295,7 @@ app.post('/contactUs', (req, res) => {
     res.send('POST request to public/contact/contactUs');
 });
 
-app.get('/errorPage', (req, res) => {
-    console.log("test from errorPage")
-    res.render('errorPage.ejs');
-});
 
-app.post('/errorPage', (req, res) => {
-    res.send('POST request to public/errorPage');
-});
-
-app.get('/gallery', (req, res) => {
-    res.render('gallery.ejs');
-});
-
-app.post('/gallery', (req, res) => {
-    res.send('POST request to public/gallery');
-});
-
-app.get('/about', (req, res) => {
-    res.render('about.ejs');
-});
-
-app.post('/about', (req, res) => {
-    res.send('POST request to public/home/about');
-});
 
 
 app.get('/privacyPolicy', (req, res) => {
