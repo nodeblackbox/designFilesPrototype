@@ -1180,83 +1180,239 @@ app.post('/generateApiToken', (req, res) => {
 
 
 
-
-
-app.post('/developersAPI', verifyApiKey, async (req, res) => {
-
+// Define the POST endpoint '/developersAPI'. 
+// This endpoint uses three middlewares: userRateLimiter, verifyApiKey, and an asynchronous handler.
+app.post('/developersAPI', userRateLimiter, verifyApiKey, async (req, res) => {
+    // Destructure required parameters from the request body.
     const { prompt, negative_prompt, steps, seed, width, height, cfg_scale, userId, APIKey } = req.body;
-    console.log("Received userId:", prompt);
-    console.log("Received userId:", negative_prompt);
-    console.log("Received userId:", steps);
-    console.log("Received userId:", seed);
-    console.log("Received userId:", width);
-    console.log("Received userId:", cfg_scale);
-    console.log("Received userId:", userId);
+
+    // Validate the input parameters using a custom function. 
+    // If the validation fails, send a 400 Bad Request response.
+    if (!validateInput({ prompt, negative_prompt, steps, seed, width, height, cfg_scale, userId })) {
+        return res.status(400).send({ error: 'Invalid input parameters' });
+    }
+
+    // Check if the provided API key matches the expected one.
+    // If not, send a 403 Forbidden response indicating authentication failure.
     if (DevelopersAPIKey != APIKey) {
         return res.status(403).send('User not authenticated');
     }
+
+    // Check if the current Ngrok URL is set (indicating the server is ready and the tunnel is established).
+    // If not, send a 503 Service Unavailable response.
     if (!currentNgrokUrl) {
         return res.status(503).send({ error: 'Server not ready or ngrok tunnel not established' });
     }
+
     try {
-        const response = await axios.post('${currentNgrokUrl}/generateImage', {
+        // Make an HTTP POST request to a URL (constructed using the current Ngrok URL) to generate an image.
+        // The request data includes the parameters received from the client.
+        const response = await axios.post(`${currentNgrokUrl}/generateImage`, {
             prompt, negative_prompt, steps, seed, width, height, cfg_scale
         });
 
-        // Extract image base64 data and convert to Buffer
+        // Extract the imageHex (base64 encoded image) from the response.
         const imageHex = response.data.imageHex;
+        // Convert the base64 encoded string to a Buffer for further processing.
         const imageBuffer = Buffer.from(imageHex, 'base64');
-
-        // Create a Readable stream from the Buffer
+        // Create a readable stream from the image buffer.
         const readableStream = new Readable();
         readableStream.push(imageBuffer);
-        readableStream.push(null);
+        readableStream.push(null); // Signify the end of the stream.
 
-        // Define file name
+        // Generate a unique file name for the image using the current timestamp.
         const fileName = `image_${Date.now()}.jpeg`;
-
-        // Upload the stream to MinIO
+        // Define the bucket name where the image will be stored.
         const bucketName = 'aidashboardbucket';
-        // minioClient.putObject(bucketName, fileName, readableStream, imageBuffer.length, async (err, etag) => {
-        //     if (err) {
-        //         console.error(`Error uploading to MinIO: ${err}`);
-        //         return res.status(500).send(err.message);
-        //     }
 
-        //     // Image uploaded to MinIO, now send the same image data back to the frontend
-        //     res.json({ imageHex });
-        // });
-
+        // Upload the image to MinIO (object storage service).
         minioClient.putObject(bucketName, fileName, readableStream, imageBuffer.length, async (err, etag) => {
             if (err) {
+                // Log and return an error response if the upload fails.
                 console.error(`Error uploading to MinIO: ${err}`);
                 return res.status(500).send(err.message);
             }
 
-            // Construct the URL for the image
+            // Construct the URL for the uploaded image.
             const imageUrl = `https://ecstasyessentials.shop/images/${fileName}`;
-            // const imageUrl = `https://${bucketName}/${fileName}`;
-
-            // https://ecstasyessentials.shop/images/imageMinio5.png
-
-            // Store the image URL and related data in the userGallery table
+            // Prepare a query to insert image details into the userGallery table.
             const insertQuery = "INSERT INTO userGallery (user_id, prompt, negative_prompt, steps, seed, width, height, cfg_scale, image_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
-            db.query(insertQuery, [userId, prompt, negative_prompt, steps, seed, width, height, cfg_scale, imageUrl], (err, results) => {
-                if (err) {
-                    console.error(`Error saving image data to database: ${err}`);
-                    return res.status(500).send('Error saving image data');
-                }
-                console.log("Image data saved to database");
 
-                // Image uploaded to MinIO and data stored in DB, now send the image data back to the frontend
+            try {
+                // Execute the database query to insert the image details.
+                await executeDatabaseQuery(insertQuery, [userId, prompt, negative_prompt, steps, seed, width, height, cfg_scale, imageUrl]);
+                // Respond with the imageHex (base64 encoded image) as JSON.
                 res.json({ imageHex });
-            });
+            } catch (dbErr) {
+                // Log and return an error response if the database operation fails.
+                console.error(`Error saving image data to database: ${dbErr}`);
+                res.status(500).send('Error saving image data');
+            }
         });
     } catch (error) {
+        // Catch and handle any errors that occur during the image generation process.
         console.error(`Error: ${error.message}`);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: error.message, message: 'Error generating image' });
     }
 });
+
+
+
+// This function executes a given SQL query with parameters and returns the results.
+// It is designed to work with any kind of SQL query (SELECT, INSERT, UPDATE, etc.).
+async function executeDatabaseQuery(query, params = []) {
+    return new Promise((resolve, reject) => {
+        // Execute the query with the provided parameters. 
+        // 'db.query' is a function from your database client library.
+        db.query(query, params, (err, results) => {
+            if (err) {
+                // If there's an error during query execution, reject the promise with the error.
+                reject(err);
+            } else {
+                // If the query is successful, resolve the promise with the results.
+                resolve(results);
+            }
+        });
+    });
+}
+
+// Middleware to limit the rate of requests made by a user.
+async function userRateLimiter(req, res, next) {
+    // Extract the userId from the request body.
+    const userId = req.body.userId;
+    // If userId is not provided, return a 400 Bad Request error.
+    if (!userId) {
+        return res.status(400).send({ error: 'User ID is required' });
+    }
+
+    try {
+        // Check the current rate limit status for the user for the '/developersAPI' endpoint.
+        const rateLimitStatus = await getRateLimitStatus(userId, '/developersAPI');
+        // If the user has exceeded their rate limit, return a 429 Too Many Requests error.
+        if (!rateLimitStatus.isAllowed) {
+            return res.status(429).send({ error: 'Rate limit exceeded. Try again later.' });
+        }
+
+        // If the user has not exceeded their rate limit, proceed to the next middleware.
+        next();
+    } catch (error) {
+        // If there's an error in the rate limiting process, log it and return a 500 Internal Server Error.
+        console.error('Error in rate limiting:', error);
+        res.status(500).send({ error: 'Internal Server Error' });
+    }
+}
+// This function checks the rate limit status of a user for a specific endpoint.
+async function getRateLimitStatus(userId, endpoint) {
+    // Query to retrieve the user's rate limit data for the specified endpoint.
+    const query = 'SELECT * FROM rateLimits WHERE user_id = ? AND endpoint = ?';
+    // Execute the query and store the results.
+    const results = await executeDatabaseQuery(query, [userId, endpoint]);
+
+    // If no record exists for this user and endpoint, create one and allow the request.
+    if (results.length === 0) {
+        await createRateLimitRecord(userId, endpoint);
+        return { isAllowed: true };
+    }
+
+    // Destructure relevant fields from the first result.
+    const { requests, max_requests, reset_duration, last_request } = results[0];
+    // Calculate the time since the last request in seconds.
+    const timeSinceLastRequest = (new Date() - last_request) / 1000;
+
+    // If the reset duration has passed since the last request, reset the count and allow the request.
+    if (timeSinceLastRequest > reset_duration) {
+        await resetRateLimit(userId, endpoint);
+        return { isAllowed: true };
+    }
+
+    // If the number of requests is less than the maximum allowed, increment the count and allow the request.
+    if (requests < max_requests) {
+        await incrementRateLimit(userId, endpoint);
+        return { isAllowed: true };
+    }
+
+    // If none of the above conditions are met, the user has exceeded their rate limit.
+    return { isAllowed: false };
+}
+
+
+// This function creates a new rate limit record for a user for a specific endpoint.
+async function createRateLimitRecord(userId, endpoint) {
+    // Query to insert a new record with an initial request count of 1.
+    const insertQuery = 'INSERT INTO rateLimits (user_id, endpoint, requests, max_requests, reset_duration) VALUES (?, ?, 1, 1000, 3600)';
+    // Execute the insert query.
+    await executeDatabaseQuery(insertQuery, [userId, endpoint]);
+}
+
+// This function resets the rate limit count for a user for a specific endpoint.
+async function resetRateLimit(userId, endpoint) {
+    // Query to reset the request count to 1 and update the last_request timestamp.
+    const updateQuery = 'UPDATE rateLimits SET requests = 1, last_request = CURRENT_TIMESTAMP WHERE user_id = ? AND endpoint = ?';
+    // Execute the update query.
+    await executeDatabaseQuery(updateQuery, [userId, endpoint]);
+}
+
+// This function increments the rate limit count for a user for a specific endpoint.
+async function incrementRateLimit(userId, endpoint) {
+    // Query to increment the request count and update the last_request timestamp.
+    const updateQuery = 'UPDATE rateLimits SET requests = requests + 1, last_request = CURRENT_TIMESTAMP WHERE user_id = ? AND endpoint = ?';
+    // Execute the update query.
+    await executeDatabaseQuery(updateQuery, [userId, endpoint]);
+}
+
+// This function validates various input parameters received in the request body.
+function validateInput({ prompt, negative_prompt, steps, seed, width, height, cfg_scale, userId }) {
+    // Validation checks for each parameter.
+    // Returns false if any validation fails; otherwise, returns true.
+    // Add specific validation logic for each parameter as per your application requirements.
+    // Example validations are shown below.
+    // Validate 'prompt' - non-empty string
+    if (typeof prompt !== 'string' || prompt.trim().length === 0) {
+        return false;
+    }
+
+    // Validate 'negative_prompt' - non-empty string
+    if (typeof negative_prompt !== 'string' || negative_prompt.trim().length === 0) {
+        return false;
+    }
+
+    // Validate 'steps' - must be a number within a specific range
+    const stepsRange = { min: 1, max: 100 };
+    if (typeof steps !== 'number' || steps < stepsRange.min || steps > stepsRange.max) {
+        return false;
+    }
+
+    // Validate 'seed' - must be a number
+    if (typeof seed !== 'number') {
+        return false;
+    }
+
+    // Validate 'width' and 'height' - must be numbers within specific ranges
+    const dimensionRange = { min: 100, max: 4000 };
+    if (typeof width !== 'number' || width < dimensionRange.min || width > dimensionRange.max) {
+        return false;
+    }
+    if (typeof height !== 'number' || height < dimensionRange.min || height > dimensionRange.max) {
+        return false;
+    }
+
+    // Validate 'cfg_scale' - must be a number within a specific range
+    const cfgScaleRange = { min: 0.1, max: 15 };
+    if (typeof cfg_scale !== 'number' || cfg_scale < cfgScaleRange.min || cfg_scale > cfgScaleRange.max) {
+        return false;
+    }
+
+    // Validate 'userId' - must be a non-empty string or a number (depending on your user ID format)
+    if (!(typeof userId === 'string' && userId.trim().length > 0) && typeof userId !== 'number') {
+        return false;
+    }
+
+    return true;
+}
+
+
+
+
 
 
 
