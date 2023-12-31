@@ -1411,12 +1411,6 @@ function validateInput({ prompt, negative_prompt, steps, seed, width, height, cf
 }
 
 
-
-
-
-
-
-
 // app.get('/dashboard', (req, res) => {
 //     if (!req.session.userId) {
 //         return res.redirect('/login');
@@ -1425,17 +1419,60 @@ function validateInput({ prompt, negative_prompt, steps, seed, width, height, cf
 // });
 // }
 
-app.get('/userImages/:userId', (req, res) => {
-    const userId = req.params.userId;
-    const query = "SELECT * FROM userGallery WHERE user_id = ?";
-    db.query(query, [userId], (err, results) => {
-        if (err) {
-            console.error("Database error:", err);
-            return res.status(500).send('Error fetching images');
+// app.get('/userImages/:userId', (req, res) => {
+//     const userId = req.params.userId;
+//     const query = "SELECT * FROM userGallery WHERE user_id = ?";
+//     db.query(query, [userId], (err, results) => {
+//         if (err) {
+//             console.error("Database error:", err);
+//             return res.status(500).send('Error fetching images');
+//         }
+//         res.json(results);
+//     });
+// });
+
+
+// GET endpoint to retrieve images from the 'userGallery' table for a specific user.
+app.get('/userImages/:userId', async (req, res) => {
+    // Extract the userId from the URL parameter and convert it to an integer.
+    // The radix 10 is specified to ensure the string is parsed as a decimal number.
+    const userId = parseInt(req.params.userId, 10);
+
+    // Validate the userId to ensure it is a valid number and not less than or equal to 0.
+    // This check prevents potential SQL injection and bad requests.
+    if (isNaN(userId) || userId <= 0) {
+        // Return a 400 Bad Request error if the userId is invalid.
+        return res.status(400).send({ error: 'Invalid user ID' });
+    }
+
+    try {
+        // SQL query to select all records from the 'userGallery' table for the given user.
+        // The '?' is a placeholder for parameter substitution to prevent SQL injection.
+        const query = "SELECT * FROM userGallery WHERE user_id = ?";
+
+        // Execute the query with the userId as the parameter.
+        // The 'executeDatabaseQuery' function abstracts database querying and error handling.
+        const results = await executeDatabaseQuery(query, [userId]);
+
+        // Check if the query returned any records.
+        if (results.length === 0) {
+            // Return a 404 Not Found error if no records are found for the user.
+            return res.status(404).send({ error: 'No images found for the specified user' });
         }
+
+        // Optional: Format the results if necessary. 
+        // This can include restructuring the data or omitting certain fields for privacy or security.
+
+        // Send the query results as a JSON response.
         res.json(results);
-    });
+    } catch (err) {
+        // Handle any errors that occur during the database query.
+        // Log the error for debugging purposes and return a 500 Internal Server Error.
+        console.error("Database error:", err);
+        res.status(500).send({ error: 'Error fetching images from the database' });
+    }
 });
+
 
 // app.post('/upload', upload.single('image'), (req, res) => {
 //     const file = req.file;
@@ -1455,45 +1492,59 @@ app.get('/userImages/:userId', (req, res) => {
 // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-// Express route to handle file uploads
+// Express route to handle image file uploads.
 app.post('/upload', upload.single('image'), (req, res) => {
+    // Logging to indicate that the upload endpoint was hit.
+    console.log("upload hit");
 
-    console.log("upload hit")
+    // Extract the file from the request.
     const file = req.file;
 
-    // Check if a file is provided in the request
+    // Check if a file is provided in the request.
     if (!file) {
-        console.log("no file")
+        console.log("No file provided for upload.");
+        // Return a 400 Bad Request response if no file is found in the request.
         return res.status(400).send('No file uploaded.');
     }
 
-    // Use fs to create a read stream and get file size
+    // Use the 'fs' (File System) module to create a read stream for the file.
+    // Also, obtain file statistics for the file size.
     let fileStream, fileStat;
     try {
         fileStream = fs.createReadStream(file.path);
         fileStat = fs.statSync(file.path);
     } catch (error) {
+        // Log the error if the file read operation fails.
         console.error(`Error reading file from disk: ${error}`);
+        // Return a 500 Internal Server Error response if there's an error reading the file.
         return res.status(500).send('Error reading file from disk.');
     }
 
-    // Upload the file to Minio bucket
+    // Upload the file to the Minio bucket.
+    // 'bucketName' should be predefined or extracted from environment variables/config.
     minioClient.putObject(bucketName, file.originalname, fileStream, fileStat.size, (err, etag) => {
         if (err) {
+            // Log the error if the file upload to Minio fails.
             console.error(`Error uploading to MinIO: ${err}`);
+            // Return a 500 Internal Server Error response if the upload fails.
             return res.status(500).send(err.message);
         }
+
+        // Respond with a success message including the ETag (entity tag).
+        // The ETag can be used for cache validation.
         res.send(`File uploaded successfully. ETag: ${etag}`);
 
-        // Optionally delete the file from local storage after upload
+        // Optionally, delete the file from local storage after it's been uploaded.
+        // This helps to free up server space.
         fs.unlink(file.path, unlinkErr => {
             if (unlinkErr) {
-                console.log(`Error deleting file: ${unlinkErr}`);
-                console.error(`Error deleting file: ${unlinkErr}`);
+                // Log any error that occurs during the file deletion process.
+                console.error(`Error deleting file from local storage: ${unlinkErr}`);
             }
         });
     });
 });
+
 
 
 
@@ -1536,9 +1587,6 @@ app.get('/search', (req, res) => {
 app.post('/search', (req, res) => {
     res.send('POST request to shop/search');
 });
-
-
-
 
 
 app.get('/errorPage', (req, res) => {
