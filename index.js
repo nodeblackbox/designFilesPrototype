@@ -150,7 +150,7 @@ db.connect((err) => {
 
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-console.log("endpointSecret", endpointSecret)
+// console.log("endpointSecret", endpointSecret)
 
 
 
@@ -229,8 +229,6 @@ app.post('/webhook', express.raw({ type: 'application/json' }),
             // Here you can add code to update the user's status in your database
             // using the extracted userId
         }
-
-
 
         try {
             // JSON to access the Stripe event data
@@ -346,9 +344,6 @@ app.get('/product/:productId', (req, res) => {
 });
 
 
-
-
-
 // Function to execute a database query
 function executeDatabaseQuery(query, params = []) {
     return new Promise((resolve, reject) => {
@@ -361,8 +356,6 @@ function executeDatabaseQuery(query, params = []) {
         });
     });
 }
-
-
 
 
 app.post('/checkout/:productId', async (req, res) => {
@@ -762,7 +755,8 @@ app.get('/userProfile', async (req, res) => {
         // Redirect to login page if not logged in
         return res.redirect('/login');
     }
-
+    // console.log(user)
+    console.log("user", req.session.userId)
     try {
         const userQuery = `
             SELECT username, email, profile_picture, bio FROM users WHERE user_id = ?`;
@@ -848,10 +842,17 @@ app.get('/logout', (req, res) => {
 //     });
 // });
 
-
+var isLoggedIn = false;
 
 app.get('/', (req, res) => {
-    res.render('index', { products });
+    if (req.session.userId) {
+        console.log("req.session.userId", req.session.userId);
+        isLoggedIn = true;
+        res.render('index', { isLoggedIn, products });
+    } else {
+        isLoggedIn = false;
+        res.render('index', { isLoggedIn, products });
+    }
 });
 
 app.post('/', (req, res) => {
