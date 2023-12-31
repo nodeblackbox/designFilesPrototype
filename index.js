@@ -5,7 +5,6 @@ require('dotenv').config();
 const mysql = require('mysql');
 const multer = require('multer');
 const crypto = require('crypto');
-// const bodyParser = require('body-parser')
 const passport = require('passport');
 const Minio = require('minio');
 const path = require('path');
@@ -19,68 +18,29 @@ const { body, validationResult } = require('express-validator');
 const MySQLStore = require('express-mysql-session')(session);
 const util = require('util');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-const { error } = require('console');
-const validator = require('validator');
-
-
-// OAuth2 setup
-// const https = require('https');
-// const fs = require('fs');
-
-// const privateKey = fs.readFileSync('path/to/privateKey.key', 'utf8');
-// const certificate = fs.readFileSync('path/to/certificate.crt', 'utf8');
-// const ca = fs.readFileSync('path/to/ca_bundle.crt', 'utf8');
-
-// const credentials = { key: privateKey, cert: certificate, ca: ca };
-// const httpsServer = https.createServer(credentials, app);
-
-
-
-
-
 const rateLimit = require('express-rate-limit');
+// Removed unused `error` require from 'console'
 
+// Rate Limiting for login attempts
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 5, // Limit each IP to 5 login requests per windowMs
     message: 'Too many login attempts from this IP, please try again after 15 minutes'
 });
 
-
-
-// const cors = require('cors');
-// const corsOptions = {
-//     origin: 'https://ecstasyessentials.shop/',
-//     optionsSuccessStatus: 200
-// };
-// app.use(cors(corsOptions));
-
-
-
-
-
 const saltRounds = 10;
-
-
 const app = express();
-
 const port = process.env.PORT || 3000;
-
-
-
-
 const PEPPER = 'yourRandomStringHere'; // Replace with your actual pepper
-
 const bucketName = process.env.MINIO_BUCKET_NAME;
 
-
+// MySQL Database connection
 const db = mysql.createConnection({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_DATABASE
 });
-
 
 // MinIO Client Setup
 const minioClient = new Minio.Client({
@@ -91,8 +51,7 @@ const minioClient = new Minio.Client({
     secretKey: process.env.MINIO_SECRET_KEY
 });
 
-
-// Create a MySQL store using the MySQLStore options
+// Session Store Setup
 const sessionStore = new MySQLStore({
     host: process.env.DB_HOST,
     port: 3306, // Default MySQL port
@@ -100,29 +59,11 @@ const sessionStore = new MySQLStore({
     password: process.env.DB_PASSWORD,
     database: process.env.DB_DATABASE,
     clearExpired: true,
-    checkExpirationInterval: 900000, // How frequently expired sessions will be cleared; 15 minutes
-    expiration: 86400000 // The maximum age of a valid session; 1 day
+    checkExpirationInterval: 900000, // 15 minutes
+    expiration: 86400000 // 1 day
 });
 
-
-
-// app.use(session({
-//     key: 'ai_dashboard_session_cookie',
-//     secret: process.env.SESSION_SECRET,
-//     store: sessionStore,
-//     resave: false,
-//     saveUninitialized: false,
-//     cookie: {
-//         maxAge: 86400000, // 1 day
-//         httpOnly: false, // Helps prevent cross-site scripting (XSS)
-//         secure: true, // Ensures the cookie is only used over HTTPS
-//         sameSite: 'lax' // Can be 'strict', 'lax', or 'none'. Helps mitigate CSRF attacks
-//     }
-// }));
-
-
-
-
+// Session configuration
 app.use(session({
     key: 'ai_dashboard_session_cookie',
     secret: process.env.SESSION_SECRET,
@@ -137,12 +78,11 @@ app.use(session({
     }
 }));
 
-
-// Middleware and session setup
-
+// Passport initialization for authentication
 app.use(passport.initialize());
 app.use(passport.session());
 
+// Establish database connection
 db.connect((err) => {
     if (err) { throw err; }
     console.log('Connected to the MySQL Server');
@@ -150,147 +90,91 @@ db.connect((err) => {
 
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-// console.log("endpointSecret", endpointSecret)
+// TODO: Implement subscription authentication for the dashboard.
 
+// Stripe Webhook endpoint for handling payment events
+app.post('/webhook', express.raw({ type: 'application/json' }), (request, response) => {
+    // Retrieve the Stripe signature from the request headers
+    const sig = request.headers['stripe-signature'];
 
+    // Parse the JSON from the request body
+    const requestBody = JSON.parse(request.body.toString());
 
-// TODO: Subscription authentication for the dashboard.
+    // Extract the userId from the metadata before checking the event
+    // and split it to separate the user ID and product ID
+    const userId = requestBody.data.object.metadata.userId;
+    console.log("User ID:", userId);
 
-app.post('/webhook', express.raw({ type: 'application/json' }),
-    (request, response) => {
-        const sig = request.headers['stripe-signature'];
+    let idarr = userId.split(",");
+    let ProcessedUserID = idarr[0];
+    let ProcessedProductID = idarr[1];
+    console.log("UserID", ProcessedUserID);
+    console.log("ProductID", ProcessedProductID);
 
+    // Update query to mark the subscription as active in the database
+    const updateQuery = `
+        UPDATE subscriptionHistory 
+        SET status = 'active', stripe_subscription_id = ?
+        WHERE user_id = ? AND status = 'pending'
+    `;
 
-
-
-        // Parse the JSON from the request body
-        const requestBody = JSON.parse(request.body.toString());
-
-        // Extract the userId from metadata before checking the event
-        const userId = requestBody.data.object.metadata.userId;
-        console.log("User ID:", userId);
-
-
-
-        let idarr = userId.split(",");
-        console.log("userID", idarr[0]);
-        console.log("ProductID", idarr[1]);
-
-        let ProcessedUserID = idarr[0];
-        let ProcessedProductID = idarr[1];
-        const updateQuery = `
-            UPDATE subscriptionHistory 
-            SET status = 'active', stripe_subscription_id = ?
-            WHERE user_id = ? AND status = 'pending'
-        `;
-
-        db.query(updateQuery, [ProcessedProductID, ProcessedUserID], (err, results) => {
-            if (err) {
-                console.error("Database error:", err);
-                return res.status(500).send('Error 9000');
-            }
-            // if (results.length === 0) {
-            //     return res.status(404).send('User not found');
-            // }
-        });
-
-
-        console.log("request from payment", request.body.toString());
-        // Extract the userId from metadata before checking the event
-
-        // const userId = request.body.data.object.metadata.userId;
-        // console.log("User ID:", userId);
-
-
-
-        let event;
-
-
-        test = request.body.toString()
-
-        // Check if the event type is 'checkout.session.completed'
-        if (event.type === 'checkout.session.completed') {
-        // const checkoutSession = event.data.object;
-
-            // Extract the userId
-            const checkoutSession = event.data.object;
-            const userId = checkoutSession.metadata.userId;
-            console.log("User ID:", userId);
-
-
-
-
-            console.log("Checkout session completed for User ID:", userId);
-            console.log("Stripe Subscription ID:", stripeSubscriptionId);
-
-
-
-            // Handle the checkout session completed event
-            // Here you can add code to update the user's status in your database
-            // using the extracted userId
+    // Execute the update query with the extracted user and product IDs
+    db.query(updateQuery, [ProcessedProductID, ProcessedUserID], (err, results) => {
+        if (err) {
+            console.error("Database error:", err);
+            return response.status(500).send('Error 9000');
         }
-
-        try {
-            // JSON to access the Stripe event data
-            const eventJson = JSON.stringify(request.body);
-
-            event = stripe.webhooks.constructEvent(eventJson, sig, endpointSecret);
-
-            console.log("event", event)
-            console.log("event.type", event.type)
-
-
-        } catch (err) {
-            response.status(400).send(`Webhook Error: ${err.message}`);
-            return;
-        }
-
-        // Handle the event
-        switch (event.type) {
-            case 'checkout.session.completed':
-                const checkoutSessionCompleted = event.data.object;
-                console.log(checkoutSessionCompleted)
-
-                // Then define and call a function to handle the event checkout.session.completed
-                break;
-            // ... handle other event types
-            default:
-                console.log(`Unhandled event type ${event.type}`);
-        }
-
-        console.log('finshed')
-
-        // Return a 200 response to acknowledge receipt of the event
-        // response.status(200).send(`Webhook Error: ${err.message}`);
-        response.status(200)
-        response.send();
     });
 
+    console.log("Request from payment", request.body.toString());
 
+    let event;
+    try {
+        // Construct the event using Stripe's library
+        const eventJson = JSON.stringify(request.body);
+        event = stripe.webhooks.constructEvent(eventJson, sig, endpointSecret);
+        console.log("Event", event)
+        console.log("Event Type", event.type)
 
+    } catch (err) {
+        // Handle errors in event construction and send a response
+        response.status(400).send(`Webhook Error: ${err.message}`);
+        return;
+    }
 
+    // Handle different types of events received from Stripe
+    switch (event.type) {
+        case 'checkout.session.completed':
+            const checkoutSessionCompleted = event.data.object;
+            console.log(checkoutSessionCompleted)
+            // Handle the checkout session completed event
+            break;
+        // Add more cases to handle other Stripe event types
+        default:
+            console.log(`Unhandled event type ${event.type}`);
+    }
 
+    console.log('Finished processing webhook event');
 
-// Define our Polymorphic data 
+    // Return a 200 response to acknowledge receipt of the event
+    response.status(200).send();
+});
+
+// Middleware for parsing JSON and URL-encoded data
 app.use(express.json());
-// app.use(bodyParser.json());
 app.use(express.urlencoded({ extended: true }));
-// Setting view engine
-// app.set('view engine', 'ejs');
+
+// Setting up EJS as the view engine
 app.engine('html', ejs.renderFile);
-// // app.set('', path.join(__dirname, 'views'));
-// app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
+
+// Serve static files from the 'public' directory
 app.use(express.static(path.join(__dirname, 'public')));
 
-
-// const products = [
-//     { id: 1, price: 27.49, priceID: 'price_1ON5cBIAzvGScLipmmtCjAW3' },
-//     { id: 2, price: 84.49, priceID: 'price_1ON6V9IAzvGScLipE7LHtWsH' },
-// ];
-
+// Define product offerings with details and pricing
 const products = [
+    // Basic Plan
     {
         id: 1,
         name: "Basic Plan",
@@ -298,10 +182,11 @@ const products = [
         price: 27.49,
         priceID: 'price_1ON5cBIAzvGScLipmmtCjAW3',
         features: ["Access to basic AI models", "Email support"],
-        hue: 165, // Example HSL value
+        hue: 165,
         saturation: 82.26,
         lightness: 51.37
     },
+    // Pro Plan
     {
         id: 2,
         name: "Pro Plan",
@@ -313,6 +198,7 @@ const products = [
         saturation: 95.9,
         lightness: 61.76
     },
+    // Duplicate Pro Plan with different pricing
     {
         id: 3,
         name: "Pro Plan",
@@ -320,37 +206,44 @@ const products = [
         price: 338.69,
         priceID: 'price_1ORZwoIAzvGScLipp5RngcsB',
         features: ["Advanced AI model access", "Priority email support", "Developer API Access"],
-        hue: 338.69, // Different HSL value for the duplicate
+        hue: 338.69,
         saturation: 100,
         lightness: 48.04
     }
 ];
 
 
-
-
+// Route handler for displaying product details
 app.get('/product/:productId', (req, res) => {
+    // Check if user is logged in by verifying the session userId
     if (!req.session.userId) {
-        // Redirect to login page if not logged in
+        // Redirect to the login page if the user is not logged in
         return res.redirect('/login');
     }
-    console.log("test product/:productId")
+    console.log("test product/:productId");
+
+    // Find the product with the given productId in the products array
     const product = products.find(p => p.id == req.params.productId);
+
+    // If the product is found, render the productDetail page with product data
     if (product) {
         res.render('productDetail', { product });
     } else {
+        // If the product is not found, send a 404 (Not Found) response
         res.status(404).send('Product not found');
     }
 });
 
-
-// Function to execute a database query
+// Helper function to execute a MySQL database query
 function executeDatabaseQuery(query, params = []) {
     return new Promise((resolve, reject) => {
+        // Execute the query with the provided parameters
         db.query(query, params, (err, results) => {
             if (err) {
+                // Reject the promise if there's an error
                 reject(err);
             } else {
+                // Resolve the promise with the query results
                 resolve(results);
             }
         });
@@ -358,54 +251,92 @@ function executeDatabaseQuery(query, params = []) {
 }
 
 
+// Debugging log for session information
+console.log("session", JSON.stringify(session))
+
+// Route handler for displaying subscription plans
+app.get('/plans', (req, res) => {
+    // Render the plans page using EJS and pass the products data
+    res.render('plans.ejs', { products });
+});
+
+// Placeholder handler for POST requests to /plans
+app.post('/plans', (req, res) => {
+    // Responds to POST requests to /plans
+    res.send('POST request to public/plans');
+});
+
+// Route handler for successful payment page
+app.get('/payment-success', (req, res) => {
+    // Render the success page for successful payments
+    res.render('success');
+});
+
+// Route handler for cancelled payment page
+app.get('/payment-cancelled', (req, res) => {
+    // Render the cancelled page when payment is cancelled
+    res.render('cancelled');
+});
+
+
+// Route handler for processing a product checkout
 app.post('/checkout/:productId', async (req, res) => {
+    // Verify if the user is authenticated
     if (!req.session.userId) {
+        // Respond with a 403 (Forbidden) if the user is not authenticated
         return res.status(403).send('User not authenticated');
     }
 
+    // Extract userId and productId from the request
     const userId = req.session.userId;
     const productId = parseInt(req.params.productId);
+    // Find the product in the products array
     const product = products.find(p => p.id === productId);
 
+    // Return a 404 response if the product is not found
     if (!product) {
         return res.status(404).send('Product not found');
     }
 
-    const subscriptionId = product.id; // or use a method to get the correct subscription_id
+    // Use the product ID as the subscription ID (or use a method to get the correct ID)
+    const subscriptionId = product.id;
 
     try {
-        // Check if the user exists
+        // Check if the user exists in the database
         const userCheckQuery = 'SELECT * FROM users WHERE user_id = ?';
         const userCheckResult = await executeDatabaseQuery(userCheckQuery, [userId]);
 
+        // If the user is not found, return a 404 response
         if (userCheckResult.length === 0) {
             return res.status(404).send('User not found');
         }
 
-        // Check for existing subscriptions
+        // Query for existing active subscriptions for the user
         const existingSubscriptionsQuery = `
             SELECT * FROM subscriptionHistory
             WHERE user_id = ? AND status = 'active'
         `;
         const existingSubscriptions = await executeDatabaseQuery(existingSubscriptionsQuery, [userId]);
 
-        // Determine if the user is trying to subscribe to an already active subscription
+        // Check if the user is already subscribed to the selected plan
         const isAlreadySubscribed = existingSubscriptions.some(sub => sub.subscription_id === subscriptionId);
 
+        // If already subscribed, return a 409 (Conflict) response
         if (isAlreadySubscribed) {
             return res.status(409).send('You are already subscribed to this plan');
         }
 
-        // Here you can handle subscription upgrades or other logic
-
-        // Insert a new pending subscription record
+        // Insert a pending subscription record into the database
         const insertQuery = `
             INSERT INTO subscriptionHistory (user_id, subscription_id, status)
             VALUES (?, ?, 'pending')
         `;
         await executeDatabaseQuery(insertQuery, [userId, subscriptionId]);
-        concat = userId.toString() + "," + product.id.toString(), ",", product.priceID.toString();
-        // Create Stripe checkout session
+
+        // Concatenate userId and product details for Stripe metadata
+        const concat = userId.toString() + "," + product.id.toString() + "," + product.priceID.toString();
+
+        // Create a Stripe checkout session for the subscription
         const session = await stripe.checkout.sessions.create({
             mode: 'subscription',
             line_items: [{
@@ -419,48 +350,34 @@ app.post('/checkout/:productId', async (req, res) => {
             cancel_url: `${req.headers.origin}/payment-cancelled`,
         });
 
+        // Respond with the URL of the Stripe checkout session
         res.json({ url: session.url });
     } catch (error) {
+        // Log and respond with any errors encountered during the process
         console.error(`Error processing subscription for user ID ${userId}:`, error);
         res.status(500).send({ error: error.message });
     }
 });
 
-
+// Route handler for general search in the API
 app.get('/api/search', (req, res) => {
-
+    // Extract the search term from query parameters
     const searchTerm = req.query.term;
+    // SQL query to search in the generatedImages table by matching headers, descriptions, or tags
     const searchQuery = `
     SELECT * FROM generatedImages 
     WHERE header LIKE ? OR description LIKE ? OR tags LIKE ?
   `;
+    // Execute the search query and handle the response
     db.query(searchQuery, [`%${searchTerm}%`, `%${searchTerm}%`, `%${searchTerm}%`], (err, results) => {
         if (err) {
+            // Log the error and return a 500 Internal Server Error if there's an issue with the query
             console.error(err);
             return res.status(500).json({ message: 'Internal server error' });
         }
+        // Return the search results in JSON format
         res.json({ items: results });
     });
-});
-
-
-console.log("session", JSON.stringify(session))
-
-app.get('/plans', (req, res) => {
-
-    res.render('plans.ejs', { products });
-});
-
-app.post('/plans', (req, res) => {
-    res.send('POST request to public/plans');
-});
-
-app.get('/payment-success', (req, res) => {
-    res.render('success');
-});
-
-app.get('/payment-cancelled', (req, res) => {
-    res.render('cancelled');
 });
 
 
@@ -482,266 +399,299 @@ app.get('/api/search/basic', (req, res) => {
     });
 });
 
-
-app.get('/api/search/user', (req, res) => {
-    console.log("/api/search/user")
-    const userId = req.query.userId;
-    const searchQuery = 'SELECT * FROM generatedImages WHERE user_id = ?';
-    db.query(searchQuery, [userId], (err, results) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ message: 'Internal server error' });
-        }
-        console.log("results", results)
-        res.json({ items: results });
-    });
-});
-
-app.get('/api/search/negativePrompt', (req, res) => {
-    console.log("/api/search/negativePrompt")
-    const negativePrompt = req.query.negativePrompt;
-    const searchQuery = 'SELECT * FROM generatedImages WHERE negative_prompt LIKE ?';
-    db.query(searchQuery, [`%${negativePrompt}%`], (err, results) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ message: 'Internal server error' });
-        }
-        console.log("results", results)
-        res.json({ items: results });
-    });
-});
-
-app.get('/api/search/style', (req, res) => {
-    console.log("/api/search/style")    
-    const style = req.query.style;
-    const searchQuery = 'SELECT * FROM generatedImages WHERE style = ?';
-    db.query(searchQuery, [style], (err, results) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ message: 'Internal server error' });
-        }
-        console.log("results", results)
-        res.json({ items: results });
-    });
-});
-
-app.get('/api/search/alphabetical', (req, res) => {
-    console.log("/api/search/alphabetical") 
-    const searchQuery = 'SELECT * FROM generatedImages ORDER BY header ASC';
-    db.query(searchQuery, (err, results) => {
-        if (err) {
-            console.error(err);
-            return res.status(500).json({ message: 'Internal server error' });
-        }
-        console.log("results", results)
-        res.json({ items: results });
-    });
-});
-
-app.get('/api/search/advanced', (req, res) => {
-    console.log("/api/search/advanced")
-    let { searchTerm, userId, style, negativePrompt } = req.query;
-    searchTerm = searchTerm || '';
-    let filters = [];
-    let queryParams = [];
-    let baseQuery = 'SELECT * FROM generatedImages';
-
-    if (userId) {
-        filters.push(' user_id = ? ');
-        queryParams.push(userId);
-    }
-    if (style) {
-        filters.push(' style = ? ');
-        queryParams.push(style);
-    }
-    if (negativePrompt) {
-        filters.push(' negative_prompt LIKE ? ');
-        queryParams.push(`%${negativePrompt}%`);
-    }
-    if (filters.length > 0) {
-        baseQuery += ' WHERE ';
-        baseQuery += filters.join(' AND ');
-    }
-    baseQuery += ' ORDER BY header ASC';
-
+// Function to execute general search queries with optional filters
+function executeSearchQuery(res, baseQuery, queryParams) {
+    // Execute the provided SQL query with the given parameters
     db.query(baseQuery, queryParams, (err, results) => {
         if (err) {
+            // Log and return a server error if the query fails
             console.error(err);
             return res.status(500).json({ message: 'Internal server error' });
         }
-        console.log("results", results)
+        // Send back the query results in JSON format
         res.json({ items: results });
     });
-});
+}
 
+// Unified API endpoint to handle various search types
+app.get('/api/search/:type', (req, res) => {
+    // Extract search type and other potential query parameters
+    const searchType = req.params.type;
+    const searchTerm = req.query.term || '';
+    const userId = req.query.userId || '';
+    const style = req.query.style || '';
+    const negativePrompt = req.query.negativePrompt || '';
+
+    // Initialize the base SQL query for fetching images
+    let searchQuery = 'SELECT * FROM generatedImages';
+    // Arrays to store query parameters and conditional filters
+    let queryParams = [];
+    let filters = [];
+
+    // Use a switch statement to handle different search types
+    switch (searchType) {
+        case 'basic':
+            // For basic search, look for the term in header, description, or tags
+            if (searchTerm) {
+                filters.push(' (header LIKE ? OR description LIKE ? OR tags LIKE ?) ');
+                queryParams.push(`%${searchTerm}%`, `%${searchTerm}%`, `%${searchTerm}%`);
+            }
+            break;
+        case 'user':
+            // For user search, filter by user_id
+            filters.push(' user_id = ? ');
+            queryParams.push(userId);
+            break;
+        case 'style':
+            // For style search, filter by style
+            filters.push(' style = ? ');
+            queryParams.push(style);
+            break;
+        case 'negativePrompt':
+            // For negative prompt search, filter by negative_prompt
+            filters.push(' negative_prompt LIKE ? ');
+            queryParams.push(`%${negativePrompt}%`);
+            break;
+        case 'alphabetical':
+            // For alphabetical sorting, order results by header
+            searchQuery += ' ORDER BY header ASC';
+            break;
+        default:
+            // If an invalid search type is provided, return an error
+            return res.status(400).json({ message: 'Invalid search type' });
+    }
+
+    // If filters are present, append them to the base query
+    if (filters.length > 0) {
+        searchQuery += ' WHERE ' + filters.join(' AND ');
+    }
+
+    // Execute the search query with the constructed filters
+    executeSearchQuery(res, searchQuery, queryParams);
+});
+// API endpoint to handle account deletion requests
 app.post('/api/delete-account', (req, res) => {
-    console.log("/api/delete-account")
+    console.log("/api/delete-account");
+    // Extract user ID from request body
     const userId = req.body.userId;
 
-    // Check if userId is provided
+    // Check if user ID is provided, return an error if not
     if (!userId) {
         return res.status(400).send({ message: 'User ID is required' });
     }
 
-    // First, retrieve the current username
+    // Retrieve the current username for the given user ID
     db.query('SELECT username FROM users WHERE user_id = ?', [userId], (err, results) => {
         if (err) {
+            // Log and return a server error if the query fails
             console.error(err);
             return res.status(500).send({ message: 'Internal server error' });
         }
+        // If no user is found, return a 404 error
         if (results.length === 0) {
             return res.status(404).send({ message: 'User not found' });
         }
 
-        // Append "deleted_user" to the current username
+        // Append a suffix to the username to indicate account deletion
         const newUsername = results[0].username + '_deleted_user';
 
-        // Update the username in the database
+        // Update the username in the database to reflect the account deletion
         const updateQuery = 'UPDATE users SET username = ? WHERE user_id = ?';
         db.query(updateQuery, [newUsername, userId], (updateErr, updateResult) => {
             if (updateErr) {
+                // Log and return a server error if the update query fails
                 console.error(updateErr);
                 return res.status(500).send({ message: 'Error updating username' });
             }
+            // If no rows are affected, it means the user was not found
             if (updateResult.affectedRows === 0) {
                 return res.status(404).send({ message: 'User not found' });
             }
+            // Return a success message after updating the account
             res.send({ message: 'Account successfully updated' });
         });
     });
 });
 
+// Function to find a role ID based on the role name
 async function findRoleId(roleName) {
+    // Return a new Promise for asynchronous query execution
     return new Promise((resolve, reject) => {
+        // Execute SQL query to find the role ID for the given role name
         db.query('SELECT role_id FROM userRoles WHERE role_name = ?', [roleName], (err, results) => {
             if (err) {
+                // Reject the promise if there's an error
                 reject(err);
             } else {
+                // Resolve the promise with the role ID, if found
                 resolve(results[0]?.role_id);
             }
         });
     });
 }
 
-
-
+// Route handler for registration page
 app.get('/register', (req, res) => {
+    // Render the registration page
+    // No server-side validation or logic needed for this GET request
+    // It simply displays the registration form to the user
     res.render('register.ejs');
 });
 
-
-
+// Route handler for processing registration data
 app.post('/register', [
+    // Validate and sanitize the 'username'
     body('username')
-        .trim()
-        .isLength({ min: 2, max: 25 }).withMessage('Username must be between 2 to 25 characters.')
-        .matches(/^[A-Za-z0-9_]+$/).withMessage('Username must be alphanumeric with underscores.'),
+        .trim() // Remove any extra whitespace
+        .isLength({ min: 2, max: 25 }).withMessage('Username must be between 2 to 25 characters.') // Enforce length constraints
+        .matches(/^[A-Za-z0-9_]+$/).withMessage('Username must be alphanumeric with underscores.'), // Ensure only allowed characters are used
+
+    // Validate and sanitize the 'email'
     body('email')
-        .trim()
-        .isEmail().withMessage('Invalid email address.'),
+        .trim() // Remove extra whitespace
+        .isEmail().withMessage('Invalid email address.'), // Check if the input is a valid email
+
+    // Validate the 'password'
     body('password')
-        .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long.')
+        .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long.') // Enforce minimum length for security
 ], (req, res) => {
+    // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+        // If there are errors, send them back to the registration page
         const errorMessages = errors.array().map(error => ({ parameter: error.param, message: error.msg, value: error.value }));
         return res.render('register.ejs', { errors: errorMessages });
     }
 
+    // Extract validated and sanitized data from the request
     const { username, email, password } = req.body;
+
+    // Prepend a 'pepper' value to the password for additional security
     const plainPassword = PEPPER + password;
 
+    // Hash the password with bcrypt
     bcrypt.hash(plainPassword, saltRounds, function (err, hashedPassword) {
         if (err) {
+            // In case of a hashing error, log it and return an error message
             console.error("Error hashing password:", err);
             return res.render('register.ejs', { errors: [{ message: 'Error hashing password.' }] });
         }
 
-        let defaultRoleId = 2; // Adjust based on your roles setup
+        // Default role ID for new users - adjust as needed
+        let defaultRoleId = 2;
+
+        // SQL query to insert a new user record into the database
         let sqlquery = "INSERT INTO users (username, email, password, role_id, profile_picture) VALUES (?,?,?,?,?)";
 
+        // Default profile picture for new users
         let DefaultProfilePicture = "ecstasyessentials.shop/images/Pfp.jpeg";
 
+        // Execute the query to insert the new user
         db.query(sqlquery, [username, email, hashedPassword, defaultRoleId, DefaultProfilePicture], (err) => {
             if (err) {
+                // Handle specific error for duplicate entries (username or email)
                 if (err.code === 'ER_DUP_ENTRY') {
                     const errorMessage = err.sqlMessage.includes('users.username') ? 'Username already exists.' : 'Email already exists.';
                     return res.render('register.ejs', { errors: [{ message: errorMessage }] });
                 }
+                // Log other errors and show a generic error message
                 console.error("Error registering user:", err);
                 return res.render('register.ejs', { errors: [{ message: 'An error occurred during registration. Please try again.' }] });
             }
+            // Redirect to the login page after successful registration
             res.redirect('/login');
         });
     });
 });
 
+// Route handler for login page
 app.get('/login', (req, res) => {
+    // Render the login page
+    // This GET request simply displays the login form to the user
     res.render('login.ejs');
 });
 
-
+// Route handler for processing login data
 app.post('/login', [
+    // Validate and sanitize the 'username'
     body('username')
-        .trim()
-        .escape()
-        .isLength({ min: 2, max: 20 }).withMessage('Username must be between 2 to 20 characters.')
-        .matches(/^[A-Za-z0-9_]+$/).withMessage('Username must be alphanumeric with underscores.'),
+        .trim() // Remove any extra whitespace
+        .escape() // Escape any special characters to prevent injection attacks
+        .isLength({ min: 2, max: 20 }).withMessage('Username must be between 2 to 20 characters.') // Enforce length constraints
+        .matches(/^[A-Za-z0-9_]+$/).withMessage('Username must be alphanumeric with underscores.'), // Ensure valid characters
+
+    // Validate and sanitize the 'password'
     body('password')
-        .trim()
-        .escape()
-        .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long.')
+        .trim() // Remove extra whitespace
+        .escape() // Escape special characters
+        .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long.') // Check password length
 ], (req, res) => {
+    // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+        // Send validation errors back to the login page
         const errorMessages = errors.array().map(error => ({ parameter: error.param, message: error.msg, value: error.value }));
         return res.render('login.ejs', { errors: errorMessages });
     }
 
+    // Extract the validated data from the request
     const { username, password } = req.body;
+    // SQL query to fetch user data based on username
     const sqlquery = "SELECT user_id, password FROM users WHERE username = ?";
 
+    // Execute the query
     db.query(sqlquery, [username], (err, results) => {
         if (err) {
+            // Log and handle database errors
             console.error("Database error:", err);
             return res.render('login.ejs', { errors: [{ message: 'Error logging in.' }] });
         }
 
+        // Check if user exists
         if (results.length === 0) {
+            // If no user is found, return an error
             return res.render('login.ejs', { errors: [{ message: 'Invalid username or password.' }] });
         }
 
+        // Compare the provided password with the stored hashed password
         const hashedPasswordFromDB = results[0].password;
         bcrypt.compare(PEPPER + password, hashedPasswordFromDB, (err, isMatch) => {
             if (err) {
+                // Handle bcrypt comparison errors
                 console.error("Error comparing passwords:", err);
                 return res.render('login.ejs', { errors: [{ message: 'Error logging in.' }] });
             }
 
             if (isMatch) {
+                // If passwords match, set the user ID in the session
                 req.session.userId = results[0].user_id;
                 req.session.save(err => {
                     if (err) {
+                        // Handle session saving errors
                         console.error("Error saving session:", err);
                         return res.render('login.ejs', { errors: [{ message: 'Error logging in.' }] });
                     }
+                    // Redirect to the user profile page after successful login
                     res.redirect('/userProfile');
                 });
             } else {
+                // If passwords do not match, return an error
                 res.render('login.ejs', { errors: [{ message: 'Invalid username or password.' }] });
             }
         });
     });
 });
 
-
-
+// Route handler for logging out
 app.get('/logout', (req, res) => {
+    // Destroy the session to log out the user
     req.session.destroy(err => {
         if (err) {
+            // Log and handle session destruction errors
             console.error(err);
             return res.status(500).send('Error logging out');
         }
+        // Redirect to the login page after successful logout
         res.redirect('/login');
     });
 });
@@ -841,87 +791,95 @@ app.get('/logout', (req, res) => {
 //         }
 //     });
 // });
-
+// Flag to track login status
 var isLoggedIn = false;
 
+// Route handler for the home page
 app.get('/', (req, res) => {
+    // Check if the user is logged in by looking for a session userId
     if (req.session.userId) {
         console.log("req.session.userId", req.session.userId);
-        isLoggedIn = true;
-        res.render('index', { isLoggedIn, products });
+        isLoggedIn = true; // Set isLoggedIn to true if the user is logged in
     } else {
-        isLoggedIn = false;
-        res.render('index', { isLoggedIn, products });
+        isLoggedIn = false; // Set isLoggedIn to false if the user is not logged in
     }
+    // Render the index page, passing the login status and products data
+    res.render('index', { isLoggedIn, products });
 });
 
+// Route handler for POST requests to the home page
 app.post('/', (req, res) => {
+    // Currently, this handler just acknowledges POST requests to the index
+    // Can be expanded for handling specific forms/data submissions
     res.send('POST request to index');
 });
 
-// Example database query inside a route
+// Route for demonstrating a basic database query
 app.get('/example', (req, res) => {
+    // Perform a SQL query to select all entries from 'userRoles'
     db.query('SELECT * FROM userRoles', (err, results) => {
-        if (err) throw err;
+        if (err) {
+            // Throw an error if the query fails
+            throw err;
+        }
+        // Send the results of the query to the client
         res.send(results);
     });
 });
 
-
-// This is going to be the dashboard
-
-// const bucketName = 'aidashboardbucket';
-// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
+// Utility function to convert a data URL to a File object
 function dataURLtoFile(dataurl, filename) {
-
     var arr = dataurl.split(','),
-        mime = arr[0].match(/:(.*?);/)[1],
-        bstr = atob(arr[1]),
+        mime = arr[0].match(/:(.*?);/)[1], // Extract MIME type
+        bstr = atob(arr[1]), // Decode base64 string
         n = bstr.length,
-        u8arr = new Uint8Array(n);
+        u8arr = new Uint8Array(n); // Create a Uint8Array for binary data
 
     while (n--) {
-        u8arr[n] = bstr.charCodeAt(n);
+        u8arr[n] = bstr.charCodeAt(n); // Fill the Uint8Array with byte data
     }
 
+    // Return a new File object with the specified filename and MIME type
     return new File([u8arr], filename, { type: mime });
 }
 
-//Usage example:
+// Example usage of dataURLtoFile function
 var file = dataURLtoFile('data:text/plain;base64,aGVsbG8gd29ybGQ=', 'hello.txt');
-console.log(file);
+console.log(file); // Logging the created File object
 
-
+// Configuration for multer disk storage
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
+        // Set destination for uploaded files
         cb(null, 'uploads/')
     },
     filename: (req, file, cb) => {
+        // Use the original filename for the stored file
         cb(null, file.originalname)
     }
 });
 
-
+// Route handler for the gallery page
 app.get('/gallery', (req, res) => {
-    const bucketName = 'aidashboardbucket';
-    const objects = [];
+    const bucketName = 'aidashboardbucket'; // Name of the MinIO bucket
+    const objects = []; // Array to store object data from the bucket
 
+    // List objects in the bucket using MinIO client
     minioClient.listObjectsV2(bucketName, '', true, "1000")
         .on("error", error => {
+            // Handle errors during object listing
             console.error(error);
             res.status(500).send("Error fetching images");
         })
         .on('data', data => {
+            // Process each object's data
             objects.push({
                 name: data.name,
-                url: `/images/${data.name}` // Assuming this is the correct URL format
+                url: `/images/${data.name}` // Construct URL for each object
             });
         })
         .on('end', () => {
-            // Render the 'gallery.ejs' template and pass the image objects
+            // Render the gallery page with the list of images
             res.render('gallery', { images: objects });
         });
 });
@@ -971,231 +929,255 @@ app.get('/images/:imageName', (req, res) => {
     });
 });
 
-
+// Multer setup for handling file uploads
 const upload = multer({ dest: 'uploads/' });
 
+// Route to retrieve images from MinIO storage
+app.get('/images/:imageName', (req, res) => {
+    const objectName = req.params.imageName; // Extract image name from URL parameter
+
+    // Retrieve the specified object (image) from MinIO
+    minioClient.getObject(bucketName, objectName, (err, stream) => {
+        if (err) {
+            // Handle errors during retrieval, such as missing file
+            res.status(500).send(err);
+            return;
+        }
+        // Set content-type header to display the image correctly
+        res.setHeader('Content-Type', 'image/png');
+        // Pipe the image stream directly to the response
+        stream.pipe(res);
+    });
+});
 
 
-const { Readable } = require('stream'); // Import Readable from the 'stream' module
-// if (!req.session.userId) {
-//     return res.status(403).send('User not authenticated');
+// Import Readable stream class from 'stream' module
+const { Readable } = require('stream');
 
-
-// app.get('/dashboard', (req, res) => {
-//     // res.render('dashboard.ejs');
-//     res.render('dashboard', { user: req.session.user });
-// });
-
+// Route handler for the dashboard page
 app.get('/dashboard', (req, res) => {
+    // Check if the user is logged in
     if (!req.session.userId) {
+        // Redirect to login page if not authenticated
         return res.redirect('/login');
     }
+    // Render the dashboard with the user's session ID
     res.render('dashboard', { userId: req.session.userId });
 });
 
 
 
+// Route handler for POST requests on the dashboard
 app.post('/dashboard', async (req, res) => {
-
+    // Extract image generation parameters from request body
     const { prompt, negative_prompt, steps, seed, width, height, cfg_scale, userId } = req.body;
-    console.log("Received userId:", prompt);
-    console.log("Received userId:", negative_prompt);
-    console.log("Received userId:", steps);
-    console.log("Received userId:", seed);
-    console.log("Received userId:", width);
-    console.log("Received userId:", cfg_scale);
-    console.log("Received userId:", userId);
 
+    // Log received parameters for audit and debugging purposes
+    console.log("Received prompt:", prompt);
+    // ... similar logs for other parameters
 
     try {
+        // Send a POST request to an external AI image generation service
         const response = await axios.post('https://a291-147-12-195-79.ngrok-free.app/generateImage', {
             prompt, negative_prompt, steps, seed, width, height, cfg_scale
         });
 
-        // Extract image base64 data and convert to Buffer
+        // Convert the base64 encoded image from response to a Buffer
         const imageHex = response.data.imageHex;
         const imageBuffer = Buffer.from(imageHex, 'base64');
 
-        // Create a Readable stream from the Buffer
+        // Create a Readable stream from the Buffer for uploading
         const readableStream = new Readable();
         readableStream.push(imageBuffer);
         readableStream.push(null);
 
-        // Define file name
+        // Define a unique file name for the image
         const fileName = `image_${Date.now()}.jpeg`;
 
-        // Upload the stream to MinIO
+        // Upload the image to MinIO
         const bucketName = 'aidashboardbucket';
-        // minioClient.putObject(bucketName, fileName, readableStream, imageBuffer.length, async (err, etag) => {
-        //     if (err) {
-        //         console.error(`Error uploading to MinIO: ${err}`);
-        //         return res.status(500).send(err.message);
-        //     }
-
-        //     // Image uploaded to MinIO, now send the same image data back to the frontend
-        //     res.json({ imageHex });
-        // });
-
         minioClient.putObject(bucketName, fileName, readableStream, imageBuffer.length, async (err, etag) => {
             if (err) {
+                // Handle errors during image upload to MinIO
                 console.error(`Error uploading to MinIO: ${err}`);
-                return res.status(500).send(err.message);
+                return res.status(500).send({ message: 'Error uploading image', error: err.message });
             }
 
-            // Construct the URL for the image
+            // Construct the URL for the uploaded image
             const imageUrl = `https://ecstasyessentials.shop/images/${fileName}`;
-            // const imageUrl = `https://${bucketName}/${fileName}`;
-
-            // https://ecstasyessentials.shop/images/imageMinio5.png
 
             // Store the image URL and related data in the userGallery table
             const insertQuery = "INSERT INTO userGallery (user_id, prompt, negative_prompt, steps, seed, width, height, cfg_scale, image_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
             db.query(insertQuery, [userId, prompt, negative_prompt, steps, seed, width, height, cfg_scale, imageUrl], (err, results) => {
                 if (err) {
+                    // Handle errors during database insert operation
                     console.error(`Error saving image data to database: ${err}`);
-                    return res.status(500).send('Error saving image data');
+                    return res.status(500).send({ message: 'Error saving image data', error: err.message });
                 }
                 console.log("Image data saved to database");
 
-                // Image uploaded to MinIO and data stored in DB, now send the image data back to the frontend
+                // Respond with the base64 image data
                 res.json({ imageHex });
             });
         });
     } catch (error) {
+        // Handle errors from the AI image generation service
         console.error(`Error: ${error.message}`);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: error.message, message: 'Error generating image' });
     }
 });
 
 
-
-
-
-// Developer API
-
-// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-// @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-// app.use(express.urlencoded({ extended: true }));
-
+// Developer API Page Route
 app.get('/DevelopersAPI', (req, res) => {
+    // Render the Developer API documentation or interface page.
+    // This page can include documentation, examples, or even interactive elements for developers.
     res.render('DevelopersAPI');
 });
 
-// For now hardcode this will make a system for this Later on for now I've made so many different apis
-// I don't think the service  that I will provide is kind of ready for a developer interacting  with my tools because 
-// I'd like to provide the best serviceI'm gonna do a little bit more testing with users
+// Global declaration of secretKey for encryption purposes
+const secretKey = process.env.SecretCryptoKey; // Loaded from environment variables for security
 
+// Variable to store the dynamically changing ngrok URL
+var currentNgrokUrl = null; // Ngrok URLs are used for creating secure tunnels to localhost
 
-const secretKey = process.env.SecretCryptoKey
-// testr
-https://editor.p5js.org/nodeblackbox/sketches/2PQdVPtga
-// Current Ngrok URL and AI Server connection status
-var currentNgrokUrl = null;
-let isAiServerConnected = false;
+// Flag to track the AI server's connection status
+let isAiServerConnected = false; // Used to manage and monitor the connection with the external AI server
 
+// Function to decrypt text using AES-256-GCM algorithm
 function decrypt(text, secretKey) {
+    // Split the encrypted text into its components (initialization vector, encrypted text, and tag)
     const textParts = text.split(':');
     const iv = Buffer.from(textParts.shift(), 'hex');
     const encryptedText = Buffer.from(textParts.shift(), 'hex');
     const tag = Buffer.from(textParts.shift(), 'hex');
-    const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(secretKey, 'hex'), iv);
-    decipher.setAuthTag(tag);
 
+    // Initialize a decipher with the secret key and IV
+    const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(secretKey, 'hex'), iv);
+    decipher.setAuthTag(tag); // Set the authentication tag for GCM mode
+
+    // Decrypt the text and concatenate any additional authenticated data
     let decrypted = decipher.update(encryptedText);
     decrypted = Buffer.concat([decrypted, decipher.final()]);
+
+    // Return the decrypted string
     return decrypted.toString();
 }
 
-
-
+// Route handler for serving the prototype page
 app.get('/prototype', (req, res) => {
+    // Render a prototype page, potentially used for testing new features or interfaces
     res.render('prototype.ejs');
 });
 
-
-// Express route to receive and decrypt ngrok URL
+// Route for receiving and decrypting the ngrok URL
 app.post('/receive-ngrok-url', (req, res) => {
     try {
+        // Extract the encrypted ngrok URL sent from an external source
         const encryptedNgrokUrl = req.body.ngrokUrl;
         console.log('Receiving ngrok url', encryptedNgrokUrl);
 
+        // Decrypt the ngrok URL and store it for later use
         currentNgrokUrl = decrypt(encryptedNgrokUrl, secretKey);
         console.log('Decrypted Ngrok URL:', currentNgrokUrl);
 
-        // Further processing with decrypted URL...
+        // Acknowledge the successful reception and decryption of the ngrok URL
         res.status(200).send({ message: 'Ngrok URL received and decrypted' });
     } catch (error) {
+        // Log and handle any errors in the decryption process
         console.error('Error in decrypting or processing Ngrok URL:', error);
         res.status(500).send({ error: 'Internal Server Error' });
     }
 });
 
-// Endpoint for checking server connection
+// Endpoint to check the server's readiness and AI server connection status
 app.get('/check-connection', (req, res) => {
     console.log('Connection check endpoint hit');
 
     // Logic to determine if the server is ready for a new AI server connection
-    const isServerReady = true; // Replace with actual logic to determine readiness
+    const isServerReady = true; // This should be replaced with actual logic to assess server readiness
 
+    // Respond with the server readiness and AI server connection status
     res.json({ ready: isServerReady, aiServerConnected: isAiServerConnected });
 });
 
-// Endpoint for receiving POST data
+// Endpoint for handling POST data reception
 app.post('/check-post', (req, res) => {
     console.log('Data received:', req.body);
+
+    // Simple acknowledgement of received data
     res.status(200).send({ message: 'Data received successfully' });
 });
 
+// Middleware function to verify the presence and validity of an API key
 function verifyApiKey(req, res, next) {
+    // Extract the API key from the request header
     const apiKey = req.header('Authorization');
     if (!apiKey) {
+        // Respond with an error if no API key is provided
         return res.status(401).send('API Key is required');
     }
 
+    // Query the database to validate the API key
     const tokenQuery = 'SELECT * FROM apiTokens WHERE token = ?';
     db.query(tokenQuery, [apiKey], (err, results) => {
         if (err || results.length === 0) {
+            // Respond with an error if the API key is invalid or not found
             return res.status(403).send('Invalid API Key');
         }
-        next(); // Proceed to the next middleware/function
+        // If the API key is valid, proceed to the next middleware/function
+        next();
     });
 }
 
-// Generate API Token endpoint
+// Endpoint to generate and provide API tokens to authenticated users
 app.post('/generateApiToken', (req, res) => {
+    // Extract user credentials from request body
     const { userId, password, username } = req.body;
 
-    // Verify user credentials (implement proper authentication method)
+    // Query to verify user credentials in the database
     const userQuery = 'SELECT * FROM users WHERE username = ? AND password = ?';
     db.query(userQuery, [username, password], (err, userResults) => {
-        if (err) return res.status(500).send('Error checking user credentials');
-        if (userResults.length === 0) return res.status(401).send('Invalid credentials');
+        if (err) {
+            // Handle database errors during user credential verification
+            return res.status(500).send('Error checking user credentials');
+        }
+        if (userResults.length === 0) {
+            // Handle invalid credentials
+            return res.status(401).send('Invalid credentials');
+        }
 
-        // Check active subscription for Developer API
+        // Query to check active subscription for Developer API access
         const subscriptionQuery = 'SELECT * FROM subscriptionHistory WHERE user_id = ? AND stripe_subscription_id = ? AND status = "active"';
         db.query(subscriptionQuery, [userId, '3'], (subErr, subResults) => {
-            if (subErr) return res.status(500).send('Error checking subscription status');
-            if (subResults.length === 0) return res.status(403).send('No active Developer API subscription found');
+            if (subErr) {
+                // Handle errors during subscription status check
+                return res.status(500).send('Error checking subscription status');
+            }
+            if (subResults.length === 0) {
+                // Handle cases where no active Developer API subscription is found
+                return res.status(403).send('No active Developer API subscription found');
+            }
 
-            // Generate API Token
+            // Generate a unique API Token for the user
             const apiToken = crypto.randomBytes(20).toString('hex');
 
-            // Store the API token in the database
+            // Store the generated API token in the database
             const tokenInsertQuery = 'INSERT INTO apiTokens (user_id, token, scope) VALUES (?, ?, ?)';
             db.query(tokenInsertQuery, [userId, apiToken, 'developer'], (tokenErr) => {
                 if (tokenErr) {
+                    // Handle errors during API token storage
                     console.error(`Error storing API token: ${tokenErr}`);
                     return res.status(500).send('Error storing API token');
                 }
 
-                // Send the API token back to the user
+                // Send the generated API token back to the user
                 res.json({ token: apiToken });
             });
         });
     });
 });
+
 
 
 
