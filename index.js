@@ -538,6 +538,10 @@ app.get('/register', (req, res) => {
     res.render('register.ejs');
 });
 
+
+
+
+
 // Route handler for processing registration data
 app.post('/register', [
     // Validate and sanitize the 'username'
@@ -978,7 +982,7 @@ app.post('/dashboard', async (req, res) => {
 
     try {
         // Send a POST request to an external AI image generation service
-        const response = await axios.post('https://a291-147-12-195-79.ngrok-free.app/generateImage', {
+        const response = await axios.post('https://25b2-147-12-195-79.ngrok-free.app/generateImage', {
             prompt, negative_prompt, steps, seed, width, height, cfg_scale
         });
 
@@ -1553,7 +1557,7 @@ app.post('/upload', upload.single('image'), (req, res) => {
 // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 console.log("bucket names -----------------")
-// const stream2 = minioClient.listObjects('aidashboardbucket', '', true);
+const stream2 = minioClient.listObjects('aidashboardbucket', '', true);
 // stream2.on('data', function (obj) { console.log(obj); });
 // stream2.on('error', function (err) { console.error(err); })
 
